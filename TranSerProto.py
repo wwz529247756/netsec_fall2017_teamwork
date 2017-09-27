@@ -1,17 +1,22 @@
 '''
-Created on 2017年9月26日
+Created on 20170926
 
-@author: wangweizhou
+@author: teamwork 
 '''
 from playground.network.packet import PacketType
 from playground.network.packet.fieldtypes import UINT32, STRING, BUFFER,BOOL
 from playground.network.common import StackingProtocol
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingTransport
-import playground
 from asyncio import *
-from packet import HsPkt
+from HandShakePacket import HsPkt
+import playground
 import random
+
+'''
+    Things to do:
+    1. Setting SYN-->SYN+ACK time out mechanism 
+'''
 
 class TranSerProto(Protocol):
     def __init__(self):
@@ -21,16 +26,14 @@ class TranSerProto(Protocol):
         self.transport = None
         self.deserializer = PacketType.Deserializer()
     def connection_made(self, transport):
-        print("TranSerProto connection made!")
         self.transport=transport
         
     def data_received(self,data):
-        print("Received!")
         self.deserializer.update(data)
         if self.Status=="InActivated":
             for pkg in self.deserializer.nextPackets():
                 if pkg.PType==0:
-                    print("SYN received!")
+                    print("Server: SYN received!")
                     self.RecSeq=pkg.Seq
                     tmpkg = HsPkt()
                     tmpkg.PType = 1
@@ -39,21 +42,28 @@ class TranSerProto(Protocol):
                     tmpkg.Ack = self.RecSeq+1
                     data = tmpkg.__serialize__()
                     self.transport.write(data)
+                    print("Server: Ack+Syn sent!")
                 elif pkg.PType==2:
-                    print("ACK received!")
+                    print("Server: ACK received!")
                     if pkg.Seq==self.SenSeq+1:
                         self.RecSeq=pkg.Seq
                         self.Status="Activated"
+                        print("Server: Activated!")
                     else:
                         self.transport.close()
                     
         else:
-            print("Start transportation!")
-            #depackage
-            #self.higherProtocol().dataR
+            '''
+                After handshake processing the real transportation start here!
+                We might to do several following things:
+                1. de-packet data from the transporting packet
+                2. send the data to a higher level layer such as SSL then to the application layer
+            '''
+            
     def connection_lost(self,exc):
         print('Connection stopped because {}'.format(exc))
-if __name__=='__main__':
+        
+if __name__=='__main__':     #Unitest
     loop = get_event_loop()
     coro = playground.getConnector().create_playground_server(lambda:TranSerProto(),8999)
     myserver= loop.run_until_complete(coro)
