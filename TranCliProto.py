@@ -7,8 +7,9 @@ from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingProtocol
 from playground.network.common import StackingTransport
 import random
+import time
 
-class TranCliProto(Protocol):
+class TranCliProto(StackingProtocol):
     def __init__(self):
         '''
             Init TranCliProto: 
@@ -21,48 +22,92 @@ class TranCliProto(Protocol):
         self.Status = "InActivated"
         self.RecSeq = 0
         self.SenSeq = 0
+        self.higherTransport = None
         self.deserializer = PacketType.Deserializer()
 
     def connection_made(self, transport):
+        print("Client: TranCliProto Connection made")
         self.transport = transport
+        self.higherTransport = StackingTransport(self.transport)
+        self.connection_request()
+        
         
 
     def data_received(self, data):
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
-            if pkt.PType==1 and pkt.Ack == (self.SenSeq + 1):
-                print("Client: Ack+Syn received!")
-                self.RecSeq = pkt.Seq
-                self.SenSeq = pkt.Seq + 1
-                AckPkt = HsPkt()
-                AckPkt.PType = 2
-                AckPkt.Seq = pkt.Ack
-                AckPkt.Ack = self.SenSeq
-                self.transport.write(AckPkt.__serialize__())
-                print("Client: Ack sent!")
-            else:
-                self.transport.close()
-
+            if self.Status=="InActivated":
+                if pkt.Type==1 and pkt.Acknowledgement == (self.SenSeq + 1):
+                    print("Client: Ack+Syn received!")
+                    self.RecSeq = pkt.SequenceNumber
+                    AckPkt = HsPkt()
+                    AckPkt.Type = 2
+                    AckPkt.Checksum = 0
+                    AckPkt.SequenceNumber =0
+                    AckPkt.Acknowledgement = self.RecSeq+1
+                    self.transport.write(AckPkt.__serialize__())
+                    print("Client: Ack sent!")
+                    self.Status = "Activated"
+                    time.sleep(3)                   #test area!!
+                    self.close_request()    
+                    self.higherProtocol().connection_made(self.higherTransport)
+                    
+                
+                
+                    
+                else:
+                    self.transport.close()
+            elif self.Status == "Activated":
+                
+                '''
+                    Protocol Activated Transport data HERE!
+                '''
+                
+            elif self.Status == "HalfActivated":
+                if pkt.Type == 3:
+                    print("Client: Rip from server received!")
+                    self.RecSeq = pkt.SequenceNumber  
+                    clientRip = HsPkt()
+                    clientRip.Type=4
+                    clientRip.Checksum=0
+                    clientRip.SequenceNumber = 0
+                    self.RecSeq+=1
+                    clientRip.Acknowledgement = self.RecSeq
+                    self.transport.write(clientRip.__serialize__())
+                    self.connection_lost("End")
+                elif pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq+1:       # RIP-ACK
+                    '''
+                        Stop sendind data and WAIT!
+                    '''        
+                    print("Client: Waiting for Server close the transport!")
+                   
     def connection_request(self):
-        print("Client: Request sent!")
+        print("Client: Connection Request sent!")
         handshakeRequest = HsPkt()
-        handshakeRequest.PType = 0
-        handshakeRequest.Ack = 0
-        handshakeRequest.Seq = random.randint(0,99)   #currently the range is [0,99]
-        self.SenSeq = handshakeRequest.Seq
+        handshakeRequest.Type = 0
+        handshakeRequest.Acknowledgement = 0
+        handshakeRequest.SequenceNumber = random.randint(0,99)   #currently the range is [0,99]
+        handshakeRequest.Checksum = 0          # have to be improved in the future
+        self.SenSeq = handshakeRequest.SequenceNumber
         self.transport.write(handshakeRequest.__serialize__())
+        
+    
+    def close_request(self):
+        '''
+            Close higher level transportation!
+        '''
+        print("Client: Rip request sent!")
+        closePacket = HsPkt()
+        closePacket.Type = 3
+        self.SenSeq+=1
+        closePacket.SequenceNumber = self.SenSeq
+        closePacket.Acknowledgement = 0
+        closePacket.Checksum = 0
+        self.Status = "HalfActivated"
+        self.transport.write(closePacket.__serialize__())
     
     
     def connection_lost(self, exc):
-        self.transport = None
-        print("The Server stopped and the loop stopped")
-
-
-
-if __name__ == "__main__":
-    loop = get_event_loop()
-    coro = playground.getConnector().create_playground_connection(lambda: TranCliProto(), '20174.1.1.1', 8999)
-    mytransport,myprotocol = loop.run_until_complete(coro)
-    myprotocol.connection_request()
-    loop.run_forever()
-    loop.close()
+        self.transport.close()
+        self.higherProtocol().connection_lost(exc)
+        print("Connection stop because {}".format(exc))
