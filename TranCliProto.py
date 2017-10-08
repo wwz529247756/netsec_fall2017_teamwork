@@ -6,6 +6,7 @@ from playground.network.common import PlaygroundAddress
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingProtocol
 from playground.network.common import StackingTransport
+from myTransport import TranTransport
 import random
 import time
 
@@ -29,7 +30,7 @@ class TranCliProto(StackingProtocol):
     def connection_made(self, transport):
         print("Client: TranCliProto Connection made")
         self.transport = transport
-        self.higherTransport = StackingTransport(self.transport)
+        self.higherTransport = TranTransport(self.transport)
         self.connection_request()
 
     def data_received(self, data):
@@ -67,7 +68,7 @@ class TranCliProto(StackingProtocol):
                         print("Required resent packet because of checksum error!")
                     self.higherProtocol().data_received(pkt.Data)
 
-            elif self.Status == "HalfActivated":
+            #elif self.Status == "HalfActivated":
                 if pkt.Type == 3:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")

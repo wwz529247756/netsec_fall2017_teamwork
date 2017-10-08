@@ -22,7 +22,7 @@ if __name__=='__main__':
     playground.setConnector('ClientStack', ptConnector)
     connect = playground.getConnector('ClientStack').create_playground_connection (lambda:ClientAppProtocol(), '20174.1.1.1', 8998)
     mytransport, myclientprotocol = loop.run_until_complete(connect)
-    myclientprotocol.connection_made(mytransport)
-    myclientprotocol.SentRequest();
+    #myclientprotocol.connection_made(mytransport)
+    #myclientprotocol.SentRequest();
     loop.run_forever()
     loop.close()

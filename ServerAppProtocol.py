@@ -8,6 +8,7 @@ from playground.network.packet import PacketType
 import playground
 from asyncio import *
 from HandShakePacket import PEEPPacket
+from AppPacket import AppPacket
 
 
 class AppPacket(PacketType):
@@ -28,8 +29,8 @@ class ServerAppProtocol(Protocol):
     def data_received(self, data):
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
-            msg = pkt.Data.decode()
-        print("Server:"+msg)
+            msg = pkt.Message
+            print("Server:"+msg)
         
 
     def connection_lost(self, exc):

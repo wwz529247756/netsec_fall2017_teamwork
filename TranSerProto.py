@@ -118,7 +118,8 @@ class TranSerProto(StackingProtocol):
 
                 elif pkg.Type == 5:
                     #print("Status:activated")
-                    self.higherProtocol().data_received(self.data)
+                    print("Server: Transport layer packet received!")
+                    self.higherProtocol().data_received(pkg.Data)
 
 
     def connection_lost(self, exc):

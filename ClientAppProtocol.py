@@ -9,12 +9,7 @@ import playground
 from asyncio import *
 from ctypes.test.test_random_things import callback_func
 from HandShakePacket import PEEPPacket
-
-class AppPacket(PacketType):
-    DEFINITION_IDENTIFIER = "AppRequest"
-    DEFINITION_VERSION = "1.0"
-    FIELDS=[("Message",STRING)]
-
+from AppPacket import AppPacket
 
 class ClientAppProtocol(Protocol):
     def __init__(self):
@@ -24,13 +19,7 @@ class ClientAppProtocol(Protocol):
         print("Client: Application layer connection made! ")
         self.transport = transport
         self.echo()
-
-    def SentRequest(self,callback=None):
-        self.callback = callback
-        request = AppPacket()
-        request.Message = "Request"
-        self.transport.write(request.__serialize__())
-        print("data sent!")
+        self.transport.close()
 
     def data_received(self, data):
         print("Data received by client")
@@ -45,12 +34,8 @@ class ClientAppProtocol(Protocol):
                 '''
                     Require Dumpling transport!
                 '''
-                mypacket = PEEPPacket()
-                mypacket.Checksum = 0
-                mypacket.SequenceNumber = 0
-                mypacket.Acknowledgement=0
-                mypacket.Data = msg.encode()
-                mypacket.Type = 5
+                mypacket = AppPacket()
+                mypacket.Message = msg
                 self.transport.write(mypacket.__serialize__())
     def connection_lost(self, exc):
         print('Connection stopped because {}'.format(exc))
