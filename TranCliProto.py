@@ -25,12 +25,13 @@ class TranCliProto(StackingProtocol):
         self.RecSeq = 0
         self.SenSeq = 0
         self.higherTransport = None
+        self.window = []
         self.deserializer = PacketType.Deserializer()
 
     def connection_made(self, transport):
         print("Client: TranCliProto Connection made")
         self.transport = transport
-        self.higherTransport = TranTransport(self.transport)
+        self.higherTransport = TranTransport(self.transport,self)
         self.connection_request()
 
     def data_received(self, data):
@@ -40,16 +41,17 @@ class TranCliProto(StackingProtocol):
                 if pkt.Type == 1 and pkt.Acknowledgement == (self.SenSeq + 1):
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    print("Client: Ack+Syn received!")
+                    print("Client: Ack+Syn received! Sequence Number:{0} Acknowledgement Number:{1}",pkt.SequenceNumber,pkt.Acknowledgement)
                     self.RecSeq = pkt.SequenceNumber
                     AckPkt = PEEPPacket()
                     AckPkt.Type = 2
                     AckPkt.Checksum = 0
-                    AckPkt.SequenceNumber = 0
+                    AckPkt.SequenceNumber = self.SenSeq
+                    self.SenSeq+=1
                     AckPkt.Acknowledgement = self.RecSeq + 1
                     AckPkt.updateChecksum()
                     self.transport.write(AckPkt.__serialize__())
-                    print("Client: Ack sent!")
+                    print("Client: Ack sent! Acknowledgement Number: {0}", AckPkt.Acknowledgement)
                     self.Status = "Activated"
                     #time.sleep(3)  # test area!!
                     #self.close_request()
@@ -67,6 +69,7 @@ class TranCliProto(StackingProtocol):
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     self.higherProtocol().data_received(pkt.Data)
+                    self.RecSeq+=1
 
             #elif self.Status == "HalfActivated":
                 if pkt.Type == 3:
@@ -92,7 +95,6 @@ class TranCliProto(StackingProtocol):
                     print("Client: Waiting for Server close the transport!")
 
     def connection_request(self):
-        print("Client: Connection Request sent!")
         handshakeRequest = PEEPPacket()
         handshakeRequest.Type = 0
         handshakeRequest.Acknowledgement = 0
@@ -100,8 +102,14 @@ class TranCliProto(StackingProtocol):
         handshakeRequest.Checksum = 0  # have to be improved in the future
         handshakeRequest.updateChecksum()
         self.SenSeq = handshakeRequest.SequenceNumber
+        print("Client: Connection Request sent! Sequence Number:{0}", handshakeRequest.SequenceNumber)
         self.transport.write(handshakeRequest.__serialize__())
-
+    
+    def receiveAckList(self,acknum):
+        self.window.append(acknum)
+        
+    
+    
     def close_request(self):
         '''
             Close higher level transportation!

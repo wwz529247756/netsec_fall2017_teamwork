@@ -13,7 +13,7 @@ from HandShakePacket import PEEPPacket
 import playground
 import random
 import time
-
+from myTransport import TranTransport
 '''
     Things to do:
     1. Setting SYN-->SYN+ACK time out mechanism 
@@ -23,6 +23,8 @@ import time
 class TranSerProto(StackingProtocol):
     def __init__(self):
         super().__init__
+        self.window = []
+        self.windowsize = 10
         self.Status = "InActivated"
         self.RecSeq = 0
         self.SenSeq = 0
@@ -32,7 +34,7 @@ class TranSerProto(StackingProtocol):
     def connection_made(self, transport):
         print("Server: TranSerProto Connection made!")
         self.transport = transport
-        self.higherTransport = StackingTransport(self.transport)
+        self.higherTransport = TranTransport(self.transport,self)
 
     def data_received(self, data):
         self.data = data
@@ -118,9 +120,11 @@ class TranSerProto(StackingProtocol):
 
                 elif pkg.Type == 5:
                     #print("Status:activated")
-                    print("Server: Transport layer packet received!")
+                    print("Server: Transport layer packet received! Sequence Number: {}".format(pkg.SequenceNumber))
                     self.higherProtocol().data_received(pkg.Data)
-
+    
+    def receiveAckList(self,acknum):
+        self.window.append(acknum)
 
     def connection_lost(self, exc):
         self.higherProtocol().connection_lost(exc)
