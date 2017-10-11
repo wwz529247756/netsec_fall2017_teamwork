@@ -12,7 +12,7 @@ from TranCliProto import *
 from ServerPassThrough import *
 from ClientPassThrough import *
 
-ClientFactory = StackingProtocolFactory(lambda: ClientPassThrough(), lambda: TranCliProto())
-ServerFactory = StackingProtocolFactory(lambda: ServerPassThrough(), lambda: TranSerProto())
-myConnector = playground.Connector(protocolStack=(ClientFactory, ServerFactory))
-playground.setConnector("myprotocol", myConnector)
+lab2ClientFactory = StackingProtocolFactory(lambda: ClientPassThrough(), lambda: TranCliProto())
+lab2ServerFactory = StackingProtocolFactory(lambda: ServerPassThrough(), lambda: TranSerProto())
+lab2Connector = playground.Connector(protocolStack=(lab2ClientFactory, lab2ServerFactory))
+playground.setConnector("lab2_protocol", lab2Connector)
