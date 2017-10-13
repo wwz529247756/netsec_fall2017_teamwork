@@ -10,42 +10,55 @@ import time
 
 class TranTransport(StackingTransport):
     def __init__(self, lowerTransport, protocol):
-        super().__init__(lowerTransport,extra=None)
+        super().__init__(lowerTransport, extra=None)
         self._lowerTransport = lowerTransport
         self.protocol = protocol
-        self.windowsize = 10
+
         self.buffer = []            #Packet buffer
-        self.window = []            #Sliding window: recording the sequence number of the packets that has been sent
+
+        self.Size = 10
+        self.windowSize = 10 * self.Size
+        self.window = []  # Sliding window: recording the sequence number of the packets that has been sent
+        self.pktStore = []  # To store bytes that have been transmitted
+        self.seqStore = []
+        self.winSeq = 0
+        self.lastSeq = 0
+
         if self.get_extra_info("sockname", None) == None:
             self._extra["sockname"] = lowerTransport.get_extra_info("sockname", None)
         if self.get_extra_info("peername", None) == None:
             self._extra["peername"] = lowerTransport.get_extra_info("peername", None)
-        
-    
+
     def write(self, data):
-        self.Size = 20
-        Slices = [data[i:(i+self.Size)] for i in range(0, len(data), self.Size)]
-        count = 0
-        for SingleSlice in Slices:
+        self.buffer = data
+        print("A packet unit has been sent.")
+        for j in range(0, len(self.buffer), self.windowSize):
+            self.window = self.buffer[j:(j+self.windowSize)]
+            self.winSeq = self.protocol.SenSeq
+            self.lastSeq = self.winSeq
             
-            Pkt = PEEPPacket()
-            Pkt.Type = 5
-            Pkt.SequenceNumber = self.protocol.SenSeq
-            self.protocol.SenSeq+=1
-            Pkt.Acknowledgement = 0
-            Pkt.Data = SingleSlice
-            Pkt.Checksum = 0
-            Pkt.updateChecksum()
-            self.lowerTransport().write(Pkt.__serialize__())
-            print("Client: Transport packet sent! Sequence Number: ",Pkt.SequenceNumber)
-            
-            self.buffer.append(Pkt) #put the packet into buffer
-            self.window.append(Pkt.SequenceNumber) # record the sequence number
-            count = count + 1
-            if(count%10 == 0 and count != 0): #check every 10 packet
-                count = 0
-                time.sleep(1)
-                self.checkAck()
+            for i in range(0, len(self.window), self.Size):
+                unit = self.buffer[i:(i+self.Size)]
+                Pkt = PEEPPacket()
+                Pkt.Type = 5
+                Pkt.SequenceNumber = self.lastSeq + len(unit)
+                self.lastSeq = Pkt.SequenceNumber
+                self.protocol.SenSeq += 1
+                Pkt.Acknowledgement = 0
+                Pkt.Data = unit
+                Pkt.Checksum = 0
+                Pkt.updateChecksum()
+                self.lowerTransport().write(Pkt.__serialize__())
+                
+
+                
+
+                #self.pktStore.append(unit)
+                #self.seqStore.append(Pkt.SequenceNumber)
+                #self.count += 1
+
+            #time.sleep(1)
+            #self.checkAck()
                 
     def checkAck(self): # compare acks with seqs
         self.window.sort()
@@ -87,6 +100,7 @@ class TranTransport(StackingTransport):
         closePacket.Acknowledgement = 0
         closePacket.Checksum = 0
         closePacket.updateChecksum()
+        self.protocol.Status=3
         self.lowerTransport().write(closePacket.__serialize__())
     
     

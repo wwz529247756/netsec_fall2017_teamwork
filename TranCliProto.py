@@ -9,6 +9,19 @@ from playground.network.common import StackingTransport
 from myTransport import TranTransport
 import random
 import time
+#from asyncio.windows_events import NULL
+
+
+'''
+State machine definition:
+Client:
+    state = 0 Inactivated 
+    state = 1 Waiting for SYN-Ack
+    state = 2 Ack sent && Connection made 
+    state = 3 Rip sent waiting for ack
+    state = 4 ack receive waiting for Rip
+'''
+
 
 
 class TranCliProto(StackingProtocol):
@@ -21,23 +34,24 @@ class TranCliProto(StackingProtocol):
             
         '''
         self.transport = None
-        self.Status = "InActivated"
+        self.Status = 0
         self.RecSeq = 0
         self.SenSeq = 0
         self.higherTransport = None
         self.window = []
         self.deserializer = PacketType.Deserializer()
-
+        self.RecAck = 0
     def connection_made(self, transport):
         print("Client: TranCliProto Connection made")
         self.transport = transport
         self.higherTransport = TranTransport(self.transport,self)
         self.connection_request()
+        self.Status = 1
 
     def data_received(self, data):
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
-            if self.Status == "InActivated":
+            if self.Status == 1:
                 if pkt.Type == 1 and pkt.Acknowledgement == (self.SenSeq + 1):
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
@@ -52,7 +66,7 @@ class TranCliProto(StackingProtocol):
                     AckPkt.updateChecksum()
                     self.transport.write(AckPkt.__serialize__())
                     print("Client: Ack sent! Acknowledgement Number: {0}", AckPkt.Acknowledgement)
-                    self.Status = "Activated"
+                    self.Status = 2
                     #time.sleep(3)  # test area!!
                     #self.close_request()
                     self.higherProtocol().connection_made(self.higherTransport)
@@ -60,18 +74,63 @@ class TranCliProto(StackingProtocol):
 
                 else:
                     self.transport.close()
-            elif self.Status == "Activated":
-
+            elif self.Status == 2:
+                
+                if self.RecAck == 0:
+                    self.RecAck = self.SenSeq
                 '''
                     Protocol Activated Transport data HERE!
+                '''
+                #Add from this line
+                if pkt.Type == 2:
+                    print("Client: receive ack!: ", pkt.Acknowledgement)
+                    if not pkt.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    if pkt.Acknowledgement == self.RecAck + len(pkt.Data):
+                        if pkt.Data != None:
+                            self.higherProtocol().data_received(pkt.Data)                                                                                                                                                     
+                            self.RecSeq+=1
+                            dataAck = PEEPPacket()
+                            dataAck.Type = 2
+                            dataAck.Checksum = 0
+                            dataAck.SequenceNumber = self.SenSeq + 1
+                            dataAck.Acknowledgement = self.RecSeq + len(pkt.Data)
+                            dataAck.updateChecksum()
+                            self.transport.write(dataAck.__serialize__())
+                        self.window.append(pkt.Acknowledgement)
+                        self.RecAck = pkt.Acknowledgement
+
+                #End at this line
+                if pkt.Type == 5:
+                    if not pkt.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    self.higherProtocol().data_received(pkt.Data)                                                                                                                                                     
+                    self.RecSeq += len(pkt.Data)
+                    dataAck = PEEPPacket()
+                    dataAck.Type = 2
+                    dataAck.Checksum = 0
+                    dataAck.SequenceNumber = 0
+                    dataAck.Acknowledgement = self.SequenceNumber
+                    dataAck.updateChecksum()
+                    self.transport.write(dataAck.__serialize__())
                 '''
                 if pkt.Type == 5:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     self.higherProtocol().data_received(pkt.Data)
                     self.RecSeq+=1
+                '''
 
-            #elif self.Status == "HalfActivated":
+            elif self.Status == 3:
+                if pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq + 1:  # RIP-ACK
+                    if not pkt.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    '''
+                        Stop sendind data and WAIT!
+                    '''
+                    self.Status = 4
+                    print("Client: Waiting for Server close the transport!")
+            elif self.Status == 4:
                 if pkt.Type == 3:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
@@ -85,14 +144,9 @@ class TranCliProto(StackingProtocol):
                     clientRip.Acknowledgement = self.RecSeq
                     clientRip.updateChecksum()
                     self.transport.write(clientRip.__serialize__())
+                    self.Status=0
                     self.connection_lost("End")
-                elif pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq + 1:  # RIP-ACK
-                    if not pkt.verifyChecksum():
-                        print("Required resent packet because of checksum error!")
-                    '''
-                        Stop sendind data and WAIT!
-                    '''
-                    print("Client: Waiting for Server close the transport!")
+                
 
     def connection_request(self):
         handshakeRequest = PEEPPacket()

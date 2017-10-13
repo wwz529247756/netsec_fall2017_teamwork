@@ -15,8 +15,13 @@ import random
 import time
 from myTransport import TranTransport
 '''
-    Things to do:
-    1. Setting SYN-->SYN+ACK time out mechanism 
+    State machine:
+    1. state = 0  Inactivate && waiting for Syn packet
+    2. state = 1  Syn-ack sent waiting for ack
+    3. state = 2  ack received connection made
+    4. state = 3  rip received && ack sent!
+    5. state = 4  rip sent waiting for ack
+    
 '''
 
 
@@ -25,11 +30,12 @@ class TranSerProto(StackingProtocol):
         super().__init__
         self.window = []
         self.windowsize = 10
-        self.Status = "InActivated"
+        self.Status = 0
         self.RecSeq = 0
         self.SenSeq = 0
         self.deserializer = PacketType.Deserializer()
         self.higherTransport = None
+        self.RecAck =0
 
     def connection_made(self, transport):
         print("Server: TranSerProto Connection made!")
@@ -41,7 +47,7 @@ class TranSerProto(StackingProtocol):
         self.deserializer.update(data)
 
         for pkg in self.deserializer.nextPackets():
-            if self.Status == "InActivated":
+            if self.Status == 0:
                 if pkg.Type == 0:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
@@ -50,13 +56,15 @@ class TranSerProto(StackingProtocol):
                     tmpkg = PEEPPacket()
                     tmpkg.Type = 1
                     tmpkg.Checksum = 0
-                    tmpkg.SequenceNumber = random.randint(0, 99)
+                    tmpkg.SequenceNumber = random.randint(0, 1000)
                     self.SenSeq = tmpkg.SequenceNumber
                     tmpkg.Acknowledgement = self.RecSeq + 1
                     tmpkg.updateChecksum()
                     self.transport.write(tmpkg.__serialize__())
+                    self.Status = 1
                     print("Server: Ack+Syn sent!")
-                elif pkg.Type == 2:
+            elif self.Status == 1:
+                if pkg.Type == 2:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                         # do something for errors
@@ -64,29 +72,48 @@ class TranSerProto(StackingProtocol):
                     if pkg.Acknowledgement == self.SenSeq + 1:
                         self.RecSeq = pkg.SequenceNumber
                         self.Status = "Activated"
-                        print("Server: Activated!")
+                        
                         self.higherProtocol().connection_made(self.higherTransport)
+                        self.Status = 2
+                        print("Server: Activated!")
                     else:
                         self.transport.close()
-
-            elif self.Status == "HalfActivated":
-                if pkg.Type == 4 and pkg.Acknowledgement == self.SenSeq + 1:
+            elif self.Status == 2:
+                if self.RecAck == 0:
+                    self.RecAck = self.SenSeq
+                ''' Close the connection!'''
+                if pkg.Type == 2:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    print("Server: Rip-Ack received!")
-                    self.Status = "InActivated"
-                    self.connection_lost("Client request")
-
-            elif self.Status == "Activated":
+                    if pkg.Acknowledgement == self.RecAck + pkg.data.length:
+                        if pkg.Data != None:
+                            self.higherProtocol().data_received(pkg.Data)                                                                                                                                                     
+                            self.RecSeq+=1
+                            dataAck = PEEPPacket()
+                            dataAck.Type = 2
+                            dataAck.Checksum = 0
+                            dataAck.SequenceNumber = 0
+                            dataAck.Acknowledgement = pkg.SequenceNumber
+                            dataAck.updateChecksum()
+                            self.transport.write(dataAck.__serialize__())
+                        self.window.append(pkg.Acknowledgement)
+                        self.RecAck = pkg.Acknowledgement
                 
-                '''
-                    After handshake processing the real transportation start here!
-                    We might to do several following things:
-                    1. de-packet data from the transporting packet
-                    2. send the data to a higher level layer such as SSL then to the application layer
-                '''
-
-                ''' Close the connection!'''
+                if pkg.Type == 5:
+                    print("Server: Data packets received!", pkg.SequenceNumber)
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    self.higherProtocol().data_received(pkg.Data)
+                                                                                                                                                                        
+                    self.RecSeq += len(pkg.Data)
+                    dataAck = PEEPPacket()
+                    dataAck.Type = 2
+                    dataAck.Checksum = 0
+                    dataAck.SequenceNumber = self.SenSeq + 1
+                    dataAck.Acknowledgement = self.RecSeq + len(pkg.Data)
+                    dataAck.updateChecksum()
+                    self.transport.write(dataAck.__serialize__())
+                    
                 if pkg.Type == 3:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
@@ -102,11 +129,12 @@ class TranSerProto(StackingProtocol):
                     ServerRipAckPacket.Checksum = 0
                     ServerRipAckPacket.updateChecksum()
                     self.transport.write(ServerRipAckPacket.__serialize__())
-                    #time.sleep(2)  # Mock the buffer transport processing!
+                    self.Status = 3
                     '''
                         Only transfer data in the buffer!
                         Waiting for the transportation complete!
                     '''
+            if self.Status ==3:
                     print("Server: Waiting for the transportation complete!")
                     print("Server: Rip sent to the Client!")
                     ServerRip = PEEPPacket()  # Send Rip package after transport data from buffer
@@ -117,12 +145,15 @@ class TranSerProto(StackingProtocol):
                     ServerRip.Acknowledgement = 0
                     ServerRip.updateChecksum()
                     self.transport.write(ServerRip.__serialize__())
-
-                elif pkg.Type == 5:
-                    #print("Status:activated")
-                    print("Server: Transport layer packet received! Sequence Number: {}".format(pkg.SequenceNumber))
-                    self.higherProtocol().data_received(pkg.Data)
-    
+                    self.Status = 4
+            elif self.Status == 4:
+                if pkg.Type == 4 and pkg.Acknowledgement == self.SenSeq + 1:
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    print("Server: Rip-Ack received!")
+                    self.Status = 0
+                    self.connection_lost("Client request")
+                    
     def receiveAckList(self,acknum):
         self.window.append(acknum)
 
