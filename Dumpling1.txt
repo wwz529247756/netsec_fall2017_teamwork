@@ -1,0 +1,896 @@
+
+
+
+Network Working Group                                       W. Wang, Ed.
+Request for Comments: 1                   JHU Network Security Fall 2017
+Category: Standards Track                                   October 2017
+
+
+                    Playground Request For Comments
+
+Abstract
+
+   The network protocol is used for a variety of purposes on the
+   network.  It gives a set of rules and specifies the interaction for
+   the network telecommunication.  The PLAYGROUND (Poly-Localized
+   Algorithmic Yields Generated Remotely On Unused Network Devices)
+   system is a sandbox that allows students and researchers to develop
+   network security experiments.  This simple protocol is designed to
+   provide a secure and reliable data commutation at the Transport Layer
+   of the Network Protocol Stack.  This document explains the designed
+   protocol mechanism within its specifications.
+
+Status of this Memo
+
+   This document specifies a Playgrounds standards track protocol for
+   the Playground Experiment, and requests discussion and suggestions
+   for improvements.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (c) 2017 SETH JAMES NIELSON.  All rights reserved.
+
+   This document is used solely for educational purposes.  Any citations
+   within this document are also for educational purposes and also for
+   technical reference.  If any of these cited elements are protected
+   under copyright, their inclusion here falls under Fair Use
+   provisions.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Wang                         Standards Track                    [Page 1]
+
+RFC 1                            PRFC's                     October 2017
+
+
+Table of Contents
+
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . . .  3
+     1.1.  Requirements Language  . . . . . . . . . . . . . . . . . .  3
+   2.  Transport Layer Philosophy . . . . . . . . . . . . . . . . . .  3
+     2.1.  Models Of Operation  . . . . . . . . . . . . . . . . . . .  3
+     2.2.  PLAYGROUND Connection Diagram  . . . . . . . . . . . . . .  4
+     2.3.  Interfaces . . . . . . . . . . . . . . . . . . . . . . . .  4
+     2.4.  Relation to Other Protocol . . . . . . . . . . . . . . . .  5
+     2.5.  Protocol Relationship Diagrams . . . . . . . . . . . . . .  5
+     2.6.  State Machine  . . . . . . . . . . . . . . . . . . . . . .  5
+     2.7.  Reliable Communication . . . . . . . . . . . . . . . . . .  6
+     2.8.  Connection Establishment and Clearing  . . . . . . . . . .  6
+     2.9.  Data communication . . . . . . . . . . . . . . . . . . . .  7
+     2.10. Robustness . . . . . . . . . . . . . . . . . . . . . . . .  7
+       2.10.1.  Repeat only the Nth Segment Protocol  . . . . . . . .  7
+       2.10.2.  Duplicate Acknowledgement . . . . . . . . . . . . . .  7
+       2.10.3.  Error Handling  . . . . . . . . . . . . . . . . . . .  8
+   3.  Transport Layer Implementation . . . . . . . . . . . . . . . .  8
+     3.1.  Packets Type Identification  . . . . . . . . . . . . . . .  8
+     3.2.  State Machine  . . . . . . . . . . . . . . . . . . . . . .  9
+     3.3.  State Machine Diagram  . . . . . . . . . . . . . . . . . .  9
+     3.4.  Establishing a Connection  . . . . . . . . . . . . . . . . 11
+     3.5.  Connection Clearing Implementation . . . . . . . . . . . . 11
+     3.6.  Acknowledgement  . . . . . . . . . . . . . . . . . . . . . 12
+     3.7.  Data Communications  . . . . . . . . . . . . . . . . . . . 12
+     3.8.  Implementation of Error Handling . . . . . . . . . . . . . 13
+   4.  Normative References . . . . . . . . . . . . . . . . . . . . . 14
+   Author's Address . . . . . . . . . . . . . . . . . . . . . . . . . 14
+   Intellectual Property and Copyright Statements . . . . . . . . . . 15
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Wang                         Standards Track                    [Page 2]
+
+RFC 1                            PRFC's                     October 2017
+
+
+1.  Introduction
+
+   This PRFC (PLAYGROUND Request For Comments) is a formal document that
+   specifies the format standards and gives general information of the
+   network protocol at the Transport Layer.  PRFC is designed to
+   facilitate a transport layer mechanism with a purpose of security and
+   reliability, which is similar with RFC, a publication of the Internet
+   Engineering Task Force (IETF).
+
+   The PLAYGROUND (Poly-Localized Algorithmic Yields Generated Remotely
+   On Unused Network Devices), developed by Seth James Nielson, is a
+   pedagogical framework designed to provide a network system that
+   enables students and researchers to develop network security
+   mechanism.  The PLAYGROUND reduces the complexity of a real system,
+   but still enables a variety of attacks and defenses in the real
+   Internet.
+
+   The overall structure of the PRFC is divided into two main parts,
+   transport layer philosophy, and transport layer implementation.
+   Section II describes the transport layer philosophy, including models
+   of operation, interfaces, relations to other protocols, reliable
+   communication, connection establishment and clearance, data
+   communication and robustness.  Section III describes the transport
+   layer implementation with the explanation of packet type information,
+   connection establishment, connection closing, data communication,
+   interfaces, and error handling.
+
+1.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+
+2.  Transport Layer Philosophy
+
+2.1.  Models Of Operation
+
+   The protocol program transmits data by implementing PLAYGROUND method
+   including data receiving method, transport writing method, and multi-
+   layer architecture.  The transport-layer packet is the minimum in-
+   seperable packet type in the whole transmitting process.
+
+   As is known, to access to an Ethernet or Wi-Fi network, a Network
+   Interface Card (NIC) is required.  Instead of a piece of hardware,
+   the virtual NIC is a piece of software which is designed to provide a
+   kind of connectivity to the network.  After acquiring a NIC, it is
+   inevitable to make a connection with a certain kind of "switch".  As
+
+
+
+Wang                         Standards Track                    [Page 3]
+
+RFC 1                            PRFC's                     October 2017
+
+
+   for Ethernet, we use a cable or wire to make the connection between
+   my NIC and the switch.  With Wi-Fi, we connect to the switch via
+   radio waves.
+
+   When it comes to PLAYGROUND network, it is based on TCP reliable
+   transmitting protocol, implementing the real transmission between the
+   server and the client.  In the PLAYGROUND transmission architecture,
+   it introduces a server - switch - client model, which mocks the real
+   networking programs working via the route.  It designs Virtual
+   Network Interface Card named VINC, which is used to make a connection
+   with switch program, for clients.  In the switch, there is a table
+   for building point-to-point connection from the client to the server.
+   Meanwhile, the switch is rooted in pnetworking utility which allows
+   you to create, configure, and use any PLAYGROUND virtual hardware
+   (currently just VNICs and Switches).
+
+2.2.  PLAYGROUND Connection Diagram
+
+
+
+                 +-----------+                 +------------+
+                 |           |                 |            |
+                 |  Client   |                 |  Server    |
+                 +-----------+                 +------------+
+                      + ^                            ^ +
+                      | |                            | |
+                      v +                            + v
+               +------------+   +------------+   +------------+
+               |            |<--|            |-->|            |
+               |   VINC_1   |-->|   SWITCH   |<--|   VINC_2   |
+               |            |   |            |   |            |
+               +------------+   +------------+   +------------+
+
+
+2.3.  Interfaces
+
+   The PEEP provides write and data_received interfaces for users to
+   transfer data through the Internet and connection_request and
+   close_request interfaces to establish and clear a connection.  These
+   interfaces are similar to calls like write and read functions we used
+   in high-level language.
+
+   When the users want to establish a connection, they can use
+   connection_made interface to request a connection with the other
+   side.  And when they want to shut down a connection, they just call
+   the close function to terminate a connection.  Analogously, the users
+   can call the write interfaces when they send packets and the
+   received_data will be called when data packets come in.
+
+
+
+Wang                         Standards Track                    [Page 4]
+
+RFC 1                            PRFC's                     October 2017
+
+
+2.4.  Relation to Other Protocol
+
+   The cluster of the protocols contains an application-layer protocol,
+   a passthrough-layer protocol, and a transport-layer protocol.
+   Protocols of different layers have different functionalities.  The
+   application-layer protocol is located in the most top position.
+   Under the application layer, there is a protocol stack, which
+   contains passthrough-layer protocol and transport-layer protocol.
+   The passthrough-layer protocol, right under the application-layer
+   protocol, is a temporary protocol which is just like the name saying
+   -- processing nothing.  The transport-layer protocol is the lowest
+   layer in the architecture.  It carves data into small segments,
+   manages connection procedures and sends data.  The diagram below
+   displays the relationship between our TCP and other protocols.
+
+2.5.  Protocol Relationship Diagrams
+
+
+
+                    +-----------------+
+                    |Data transmission|         Application Layer
+                    +-----------------+
+                           |
+                 +-----------------------+
+                 |      Passthrough      |
+                 | (Stacking Protocol)   |       Transport Layer
+                 |         TCP           |
+                 +-----------------------+
+
+                     Protocol Relationship
+
+
+
+2.6.  State Machine
+
+   The goal of state machine is to control the transport-layer protocol
+   status.  In the transport layer, the protocol has to accomplish hand-
+   shaking for connection, hand-waving for termination, and data-
+   transfer process.  The protocol should be designed with separated
+   status which can only be trigged by specific action for preventing
+   potential attacks.  Furthermore, because the packets processed by
+   client and server are different while establishing a connection and
+   clearing a connection, the design of status machine between server
+   and client have to be different.  Both of the client and server have
+   5 phases in status for controlling the basic transporting process.
+
+
+
+
+
+
+Wang                         Standards Track                    [Page 5]
+
+RFC 1                            PRFC's                     October 2017
+
+
+2.7.  Reliable Communication
+
+   A stream of data that is sent in a PLAYGROUND connection is delivered
+   reliably and sequentially to the destination.
+
+   Reliable transmission is authenticated via a sequence number and an
+   acknowledgement.  The sequence number is consecutive and recorded in
+   both server and client protocol in the purpose of checking lost
+   packets, requesting for retransmission, and guaranteeing the arrival
+   order.
+
+   After receiving the data packets and sequence number, the receiver
+   would send an acknowledgement packet containing an acknowledgement
+   number.  The acknowledgement number should equal to the sequence
+   number of the received packet.  After the sender receiving the
+   acknowledgement packet from the receiver, the sending packet from the
+   sender has been verified.
+
+   There is a retransmission mechanism in the transport layer.  While
+   transmitting packets, it only allows certain numbers of packets to be
+   sent within the sending cycle, which has a fixed window size.
+   Transmission will not continue to process until receiving the whole
+   acknowledgement packets.
+
+2.8.  Connection Establishment and Clearing
+
+   The connection establishment is promoted by a three-way handshake
+   between the sender and the receiver.  First, the sender initiates a
+   handshake request indicating that it requests for a connection
+   establishment with the receiver.  This kind of process is also
+   referred to a SYN-generating process of three-way handshake.  When
+   the inactivated receiver is available for connection establishment
+   and also hears SYN request, the receiver will send back an
+   acknowledgement to the sender.  This is the second step of three-way
+   handshake.  When receiving the response from the receiver, the sender
+   will make a feedback to the receiver after authenticating the
+   acknowledgement packet.  Meanwhile, the sender will transfer itself
+   from the status of Inactivated to Activated.  This is the third step
+   of three-way handshake.  Finally, after authenticating the third
+   handshake packet, both server and client are activated, and then an
+   official connection is made for transmitting data.
+
+   Once the receiver requests a termination, a RIP request indicating to
+   close the connection is made.  This is the first step of connection
+   clearing.  As soon as the sender receives the whole checked RIP
+   request, it makes a RIP acknowledgement feedback to the receiver and
+   sets itself with half-activated status simultaneously.  After that,
+   sender continuously transmits the data left over in the buffer but
+
+
+
+Wang                         Standards Track                    [Page 6]
+
+RFC 1                            PRFC's                     October 2017
+
+
+   ceases to receive request which asking for data.  When finishing the
+   rest-data transportation, the sender sends a RIP message to the
+   receiver indicating the accomplishment of data transmission.  When
+   receiving the message of a consummation of data transportation, the
+   receiver replies the final RIP with acknowledgment to the sender.
+   Then the sender closes the connection.  In a time, the receiver
+   closes the connection as well.
+
+2.9.  Data communication
+
+   PEEP is thought as steaming protocol.  The PEEP is allowed to collect
+   data from the higher layer and store it in a buffer.  The sending
+   PEEP will apply a sliding window which contains the data it needs to
+   send.  The PEEP will processing the data until it is all in segment
+   with a proper size or the buffer is full.  Before sending, packets
+   are suppsoed to be add a header and the data should be reserved until
+   the retransmission mechanism confirms.  After packets have been sent,
+   a timeout timer has to be set for packets receiving.  A sending PEEP
+   will check the acknowledgements.  If some acknowledgements are
+   missing , the lost packets will be resent in the window and slide the
+   window back with the number of consecutive acknowledgements from the
+   begin of the window.
+
+   A receiving PEEP will send the packets with acknowledgement when it
+   is receiving packets.  However, it must be in order.  If the
+   receiving PEEP receives a packet out of order, it would simply drop
+   it and wait for the packet with correct order.
+
+2.10.  Robustness
+
+2.10.1.  Repeat only the Nth Segment Protocol
+
+   When some of the packets are lost or altered during the transmission,
+   a sliding window is designed with a length of N for retransmission.
+   Therefore, during a transmitting cycle, the maximum number of sending
+   bytes is N.The maximum number of the data can be transported in
+   packet is 1024; thus, for a more efficient transportation, N is
+   designed as N = n*1024.  A time-out timer is set in the each sending
+   window, and the data will now slide until times out.  When one of the
+   Acks is missing, the sliding window will move to the data where the
+   Ack is missing and then resend N bytes starting from the missing
+   point.  As a result, the transmission will be more reliable and
+   efficient.
+
+2.10.2.  Duplicate Acknowledgement
+
+   If a packet is lost during the transmission, the receiver will not
+   accept the rest of the data packets until the missing packet is
+
+
+
+Wang                         Standards Track                    [Page 7]
+
+RFC 1                            PRFC's                     October 2017
+
+
+   received.  By this means, the receiver will only receive packets with
+   consecutive sequence number.  If the receiver receives a sequence
+   number smaller than currently largest received sequence number, it
+   will drop the packets without sending acknowledgement packets.  Thus,
+   it can ensure the data packets can be received consecutively and
+   prevent for duplicate acknowledgement packets.
+
+2.10.3.  Error Handling
+
+   In the transport layer, the checksum function is applied to detect
+   errors which have been introduced during the packets transmission.
+   Actually, Adler32 is chosen as the checksum algorithm to generate a
+   checksum from the data transmission.  Compared to the cyclic
+   redundancy check, Adler32 trades reliability for speed.  It is more
+   light-weighted and easier to implement.  While creating a new packet,
+   we use the checksum algorithm to create a specific value putting in
+   the packet.  When the receiver receives a packet, it will check the
+   checksum value to verify the integrity of the packet (i.e. if the
+   packet is modified or not).
+
+
+3.  Transport Layer Implementation
+
+3.1.  Packets Type Identification
+
+   Packet types definitions are written in a certain python file named
+   HandShakePacket.py.  The PacketType module is imported from
+   playground package.  A class named PEEPPacket is declared that
+   inherits from PacketType.  Two pieces of information, name and
+   version number, are declared in the class as "HandshakePacket" and
+   "1.0".
+
+   Each field is identified by its name and type in the "FIELDS".  The
+   packet type named "Type" is declared as a UINT8 data type.  The
+   sequence number named "SequenceNumber" is declared as a UINT32 data
+   type.  Acknowledgment number named "Acknowledgement" is declared as a
+   UINT32 data type.  The checksum named "Checksum" is declared as a
+   UINT16 data type.  Transmitted data named "Data" is declared as a
+   BUFFER data type.
+
+   Specifically, the SYN packet type is recorded as 0.  SYN+ACK packet
+   type is recorded as 1.  ACK packet type is recorded as 2.  RIP packet
+   type is recorded as 3.  RIP+ACK packet type is recorded as 4.  Data
+   packet type is recorded as 5.  Moreover, Seq stores SYN sequence
+   number, and Ack store the acknowledgment number.
+
+
+
+
+
+
+Wang                         Standards Track                    [Page 8]
+
+RFC 1                            PRFC's                     October 2017
+
+
+3.2.  State Machine
+
+   On the server side, the status can be divided into 5 phases.  Status
+   = 0 means that the server is inactivated and waiting for SYN packet
+   from client.  Status = 1 means that the server has received the SYN
+   packets from the client, and ack-syn packet will be sent.  Status = 2
+   represents that ack packet has been received, and it will initialize
+   higher level's protocol.  Data will be transmitted when status = 2.
+   When the protocol receive the rip packet, the status will be changed
+   to 3, which means the rip packet has been received.  And then, rip-
+   ack packets will be sent.  After the rip-ack packet has been sent,
+   the protocol will send all the data in the buffer.  And after all the
+   data in buffer has been sent, server will sent a rip packet to the
+   client.  Meanwhile, the status will be set to 4 in which the server
+   will wait for ack packet from client.  When the Status = 4 and server
+   receive an ack packet, the status will be set to 0, closing
+   connection.
+
+   On the client side, Status = 0 means that the client is in an
+   inactivated state.  After sending SYN packet from the client, the
+   status will be set to 1 waiting for ack-syn packet from the server.
+   Once the ack-syn packet received by client, the status will be set to
+   2; meanwhile, client will sent ack packet to the server and higher
+   level's protocol will be initialized.  Once the client require to
+   close the connection with server, it will sent a rip packet, and the
+   status will be set to 3.  When the protocol's status = 3, it waits
+   for the ack packet from the server.  After, the client receive the
+   ack packet, the status will be set to 4 waiting for rip packet from
+   sever.  Once the rip packet has been received, the connection will be
+   closed and the status will set to 0.
+
+3.3.  State Machine Diagram
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Wang                         Standards Track                    [Page 9]
+
+RFC 1                            PRFC's                     October 2017
+
+
+                Server                               Client
+              _________                            __________
+             |         |                          |          |
+        ---->|Status=0|                          |Status = 0|<----
+       |     |_________|                          |__________|      |
+       |            |                                   |           |
+       |            |                                   |           |
+       |            |<--------------- SYN --------------|           |
+       |            v                                   v           |
+       |       __________                           ___________     |
+       |      |          |                         |           |    |
+       |      | Status=1|-------- ACK-SYN ------->|Status = 1 |    |
+       |      |__________|                         |___________|    |
+       |            |                                    |          |
+       |            |                                    |          |
+       |            |<--------------- ACK ---------------|          |
+       |            v                                    v          |
+       |       __________                          ___________      |
+       |      |          |                        |            |    |
+       |      | Status=2|<===== Data packet=====>| Status = 2 |    |
+       |      |__________|                        |____________|    |
+       |            |                                    |          |
+       |            |                                    |          |
+       |            |<--------------- Rip ---------------|          |
+       |            v                                    v          |
+       |       __________                          ____________     |
+       |      |          |                        |            |    |
+       |      | Status=3|----------- Ack ------->| Status = 3 |    |
+       |      |__________|                        |____________|    |
+       |            |                                    |          |
+       |            | [ Waiting for Server sending data] |          |
+       |            |                                    |          |
+       |            |---------------- Rip -------------->|          |
+       |            v                                    v          |
+       |       __________                          ___________      |
+       |      |          |                        |           |     |
+        ------| Status=4 |                        |Status = 4 |----
+           ^  |__________|                        |___________|
+           |                                              |
+           |                                              |
+            --------------------- Ack --------------------
+
+
+
+
+
+
+
+
+
+
+Wang                         Standards Track                   [Page 10]
+
+RFC 1                            PRFC's                     October 2017
+
+
+3.4.  Establishing a Connection
+
+   In order to implement the connection, we conduct our protocol that
+   assembles a three-way handshake between the parties involved in the
+   connection.  Specifically, the parties contain the sender and the
+   receiver.
+
+   Firstly, the sender initiates first handshake request packet that is
+   an instance of class PEEPPacket.  The instance, called
+   handshakeRequest, has the data information of Type = 0,
+   Acknowledgement = 0, Checksum = 0 and a SequenceNumber which is
+   randomly generated.  Meanwhile, the sender alters its Status from 0
+   to 1.
+
+   When getting the handshakeRequest packet, the receiver turns its
+   status from 0 to 1 and makes a response PEEPacket packet named pkt .
+   This pkt with type = 1 also has a randomly selected SequecneNumber,
+   and its Acknowledgent = default RecSeq value(here is equal to 0) plus
+   1.  After updating the checksum, pkt will be sent back to the sender.
+
+   When receiving the response packet pkt from receiver, the sender will
+   check whether the type is equal to 1 and the Acknowledgement is equal
+   to its own Sent-Sequence number plus 1.  If the both two conditions
+   are statisfied as well as checksum value being verified, the sender
+   will make a response packet named AckPkt with Type = 2.  AckPkt also
+   contains an Acknowledgement that equals to received sequence number
+   plus 1.  After verifying the checksum value, the sender instantly
+   sends the AckPkt to the receiver and sets the status to 2.
+
+   Finally, receiver activates itself --changing its status to 2-- after
+   receiving the correct acknowledgement from the sender.  As the sender
+   and the receiver both are in status 2 currently, actual data can be
+   passed through the two sides.
+
+3.5.  Connection Clearing Implementation
+
+   Since the client sends the RIP request packet to the server, the
+   connection status changes into a "alf-activated" status with status
+   number 3.  In this status, the client request to close the connection
+   with the server.  If the server receives the RIP packet, whose packet
+   type is 3, the server will also change its status into 3 and record
+   the sequence number from the client.  Acknowledgement number is one
+   plus Sent-Sequence Number, which will be written back to the client.
+   A packet of type 4 is declared as ACK packet.  A checksum, calculated
+   by updateChecksum(), will also be applied when server sends back the
+   ACK packet to tell the client that he received the RIP.  If the
+   client received the ACK packet from the server, it will hold on and
+   wait for the server to finish transporting the rest data in buffer.
+
+
+
+Wang                         Standards Track                   [Page 11]
+
+RFC 1                            PRFC's                     October 2017
+
+
+   After the ACK sending out from server to client, the server will
+   clean out the buffer which contains data.  After the clearance of
+   buffer, the server will send a RIP packet whose packet type is 3, to
+   the client.  Similarly, the new Acknowledgement number will be set as
+   one plus the Sending Sequence Number after the client receiving RIP
+   from the server.  The checksum process will also be calculated for
+   the packet.  Meanwhile, the server and the client would change their
+   statuses to 4 concurrently.  Then, the client will send the ACK
+   packet with acknowledgment number back to the server indicating the
+   rest data is all received.  Once the server receives the ACK packet,
+   the statuses of both server and client would be set to 0 which means
+   an inactivated and initial status.
+
+3.6.  Acknowledgement
+
+   After handshake successful established, the data transmission starts.
+   When the receiver have received a packet with data from the sender,
+   the receiver should send a acknowledgement packet to tell the sender
+   that he had received the data successfully.  There are two types of
+   packets which can contain data.
+
+   For both type packets, the receiver should make sure he receives the
+   ack or ack-data packets in order after check the value of the
+   checksum.  So when he receives a packet out of order, he will drop
+   it.  The acknowledgement number should equal to sequence number plus
+   data length.
+
+   The first type is type 5 which is a simply data communication packet.
+   This packet will include sequence number, check sum and data.  When
+   receiver get this type packet, he need to send a acknowledgement
+   packet whose type is 2 with sequence number and acknowledgement
+   number.
+
+   The other packet is of type 2.  This type not only have sequence
+   number, check sum and data but also have a acknowledgement number in
+   it.  So, in this circumstance, the receiver need to processing the
+   acknowledgement as well as the data.  For the acknowledgement, the
+   receiver need to record the acknowledgement for the following check
+   with the sliding window in the write method of the transport class.
+   For the data, the receiver should pass the data to the higher layer.
+
+3.7.  Data Communications
+
+   After the connection is established, no-error transmission begins.
+   As the sending PEEP, it is allowed to receive data from higher layer.
+   The data will be stored in the buffer.  Due to the packet size
+   restriction, the data has to be in segments.  In this layer, we need
+   a fix size sliding window containing the packets that supposed to be
+
+
+
+Wang                         Standards Track                   [Page 12]
+
+RFC 1                            PRFC's                     October 2017
+
+
+   sent.  The sending PEEP will send the data in the window by bytes.
+   It will delivery 1024 bytes data every time.  The PEEP will add a
+   header to segments including type, sequence number, check sum and
+   data area.
+
+   The segments may be lost in the transmission since network congestion
+   or errors like check sum error.  The PEEP have retransmission
+   mechanism to ensure all the segments are accepted.  It is possible
+   that there are duplicate segments in the network.  The PEEP use
+   sequence number and acknowledgement numbers in the segments to check
+   if they are accepted.
+
+   On the sender side, all the data will be stored in a buffer.  The
+   sender will send a certain number packets every time and record these
+   packets in the window.  Then PEEP sets a timer.  When the time is up,
+   it will check the acknowledgement numbers and decide if there needs
+   retransmission.  If all the acknowledgement numbers PEEP received are
+   in the sliding window, it will slide back the window with the length
+   of window.  Otherwise, it will slide the window back the number of
+   the consecutive acknowledgements.  Then the sender will send the
+   packets in the "new" window to the receiver.
+
+   On the receiver side, after connection has made, the receiver will
+   immediately send the acknowledgement of the packet that it received
+   if the packet's sequence number is in order.  For other packets which
+   is out of order, the receiver will simply drop the packet.  The
+   receiver will upload every packet that it received.
+
+3.8.  Implementation of Error Handling
+
+   The implementation of checksum is in the definition of PEEPPacket(),
+   within which defines three functions including calculateChecksum(),
+   updateCheckSum() and verifyChecksum().  In order to calculate the new
+   checksum value for the packet, the protocol stores the old checksum
+   value and then assign the current checksum to zero so that it can get
+   the correct checksum value for the packet.
+
+   When creating a new packet during transmission, updateChecksum() is
+   used to create a specific checksum value for the packet.  When the
+   receiver receives a packet, it will verify the checksum value of this
+   packet via verifyChecksum() so that the integrity of the packet (i.e.
+   whether the packet is altered or not) would be authenticated.  If the
+   checksum value, calculated by the receiver, is not equal to the value
+   from the received packet, it will not send an acknowledgment packet.
+   Then the sender will resend the packet to the receiver till the
+   verification of checksum is made.
+
+
+
+
+
+Wang                         Standards Track                   [Page 13]
+
+RFC 1                            PRFC's                     October 2017
+
+
+4.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, DOI 10.17487/
+              RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC2360]  Scott, G., "Guide for Internet Standards Writers", BCP 22,
+              RFC 2360, DOI 10.17487/RFC2360, June 1998,
+              <https://www.rfc-editor.org/info/rfc2360>.
+
+
+Author's Address
+
+   Weizhou (editor)
+   JHU Network Security Fall 2017
+   JHU 160 Malone Hall/3400 North Charles St.
+   Baltimore, MD  21218
+   USA
+
+   Phone: +1 410-369-6429
+   Email: qqiu3@jhu.edu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Wang                         Standards Track                   [Page 14]
+
+RFC 1                            PRFC's                     October 2017
+
+
+Full Copyright Statement
+
+   Copyright (C) Seth James Nielson (2017).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the PLAYGROUND experiment or
+   other associated organizations, except by explicit permission.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by SETH JAMES NIELSON or his successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and SETH JAMES NIELSON and associated academic
+   institutions DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+
+Intellectual Property
+
+   The PLAYGROUND framework and student submissions for PLAYGROUND are
+   intended to be free of any intellectual property conflicts.  All
+   submitting parties, especially students, are not allowed to submit
+   source code, specifications, or other components that are known to be
+   protected by copyright, patents, or other IP mechanisms.  Students
+   submitting creative content grant shared rights and ownership of
+   their content to the PLAYGROUND project.  Specifically, any
+   submission can be used in future educational settings including
+   subsequent PLAYGROUND experiments.
+
+   Any interested party is invited to bring to the experiment director's
+   attention any copyrights, patents or patent applications, or other
+   proprietary rights which may cover technology that may be currently
+   in use without permission.
+
+   It should be noted that these statements have not been reviewed by
+   legal counsel.  Moreover, the academic institutions at which
+   PLAYGROUND experiments take place may have additional or even
+   conflicting copyright and intellectual property rules.  Accordingly,
+   concerned parties may need to contact their own lawyer and/or
+   resources at their institution to understand the rights and
+
+
+
+Wang                         Standards Track                   [Page 15]
+
+RFC 1                            PRFC's                     October 2017
+
+
+   limitations associated with code donated to a PLAYGROUND experiment.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Wang                         Standards Track                   [Page 16]
+
