@@ -1,4 +1,4 @@
-from asyncio import *
+
 import playground
 from HandShakePacket import PEEPPacket
 from playground.network.packet import PacketType
@@ -8,7 +8,7 @@ from playground.network.common import StackingProtocol
 from playground.network.common import StackingTransport
 from myTransport import TranTransport
 import random
-import time
+import asyncio
 #from asyncio.windows_events import NULL
 
 
@@ -38,7 +38,11 @@ class TranCliProto(StackingProtocol):
         self.RecSeq = 0
         self.SenSeq = 0
         self.higherTransport = None
-        self.window = []
+        self.Recwindow = []
+        self.Senwindow = []
+        self.lastsize =0
+        self.packetsize=0
+        self.ackwindowlen = 0
         self.deserializer = PacketType.Deserializer()
         self.RecAck = 0
     def connection_made(self, transport):
@@ -49,8 +53,10 @@ class TranCliProto(StackingProtocol):
         self.Status = 1
 
     def data_received(self, data):
+        
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
+            print("Client: receive ack!: ", pkt.Acknowledgement)
             if self.Status == 1:
                 if pkt.Type == 1 and pkt.Acknowledgement == (self.SenSeq + 1):
                     if not pkt.verifyChecksum():
@@ -75,32 +81,31 @@ class TranCliProto(StackingProtocol):
                 else:
                     self.transport.close()
             elif self.Status == 2:
-                
+                print("Client: receive ack!: ", pkt.Acknowledgement)
                 if self.RecAck == 0:
                     self.RecAck = self.SenSeq
-                '''
-                    Protocol Activated Transport data HERE!
-                '''
-                #Add from this line
+                
+                #PiggyPacket
                 if pkt.Type == 2:
-                    print("Client: receive ack!: ", pkt.Acknowledgement)
+                    
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    if pkt.Acknowledgement == self.RecAck + len(pkt.Data):
-                        if pkt.Data != None:
-                            self.higherProtocol().data_received(pkt.Data)                                                                                                                                                     
-                            self.RecSeq+=1
-                            dataAck = PEEPPacket()
-                            dataAck.Type = 2
-                            dataAck.Checksum = 0
-                            dataAck.SequenceNumber = self.SenSeq + 1
-                            dataAck.Acknowledgement = self.RecSeq + len(pkt.Data)
-                            dataAck.updateChecksum()
-                            self.transport.write(dataAck.__serialize__())
-                        self.window.append(pkt.Acknowledgement)
-                        self.RecAck = pkt.Acknowledgement
-
-                #End at this line
+                    #if pkt.Acknowledgement == self.RecAck:
+                    print("Client: receive ack!: ", pkt.Acknowledgement)
+                    if pkt.Data != None:
+                        self.higherProtocol().data_received(pkt.Data)                                                                                                                                                     
+                        self.RecSeq+=1
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Data = None
+                        dataAck.Checksum = 0
+                        dataAck.Acknowledgement = pkt.SequenceNumber + len(pkt.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
+                    self.Recwindow.append(pkt.Acknowledgement)
+                    
+                    self.RecAck = pkt.Acknowledgement
+                # Normal Packet
                 if pkt.Type == 5:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
@@ -109,17 +114,9 @@ class TranCliProto(StackingProtocol):
                     dataAck = PEEPPacket()
                     dataAck.Type = 2
                     dataAck.Checksum = 0
-                    dataAck.SequenceNumber = 0
-                    dataAck.Acknowledgement = self.SequenceNumber
+                    dataAck.Acknowledgement = pkt.SequenceNumber+len(pkt.Data)
                     dataAck.updateChecksum()
                     self.transport.write(dataAck.__serialize__())
-                '''
-                if pkt.Type == 5:
-                    if not pkt.verifyChecksum():
-                        print("Required resent packet because of checksum error!")
-                    self.higherProtocol().data_received(pkt.Data)
-                    self.RecSeq+=1
-                '''
 
             elif self.Status == 3:
                 if pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq + 1:  # RIP-ACK
@@ -158,10 +155,28 @@ class TranCliProto(StackingProtocol):
         self.SenSeq = handshakeRequest.SequenceNumber
         print("Client: Connection Request sent! Sequence Number:{0}", handshakeRequest.SequenceNumber)
         self.transport.write(handshakeRequest.__serialize__())
+    ''' 
+    async def senttimerout(self):
+        await asyncio.sleep(1)
+        self.checkAck()
+        self.higherTransport.sent()
     
-    def receiveAckList(self,acknum):
-        self.window.append(acknum)
+    def checkAck(self):
+        self.Senwindow.sort()
+        self.Recwindow.sort()
         
+        for i in range(0,len(self.Senwindow),1):
+            if self.Senwindow[i]!=self.Recwindow[i]:
+                if i==len(self.seqStore)-1 :
+                    self.ackwindowlen = self.Senwindow[i]-self.lastsize
+                else:
+                    self.ackwindowlen = self.Senwindow[i]-self.packetsize
+                break
+            elif i==len(self.Senwindow)-1:
+                self.ackwindowlen = self.Senwindow[i]
+                break
+        self.higherTransport.currentlen = self.ackwindowlen
+    ''' 
     
     
     def close_request(self):
