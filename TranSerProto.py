@@ -35,7 +35,7 @@ class TranSerProto(StackingProtocol):
         self.SenSeq = 0
         self.deserializer = PacketType.Deserializer()
         self.higherTransport = None
-        self.RecAck =0
+        self.expectSeq =0
 
     def connection_made(self, transport):
         print("Server: TranSerProto Connection made!")
@@ -79,42 +79,53 @@ class TranSerProto(StackingProtocol):
                     else:
                         self.transport.close()
             elif self.Status == 2:
-                if self.RecAck == 0:
-                    self.RecAck = self.SenSeq
+                if self.expectSeq == 0:
+                    self.expectSeq = pkg.SequenceNumber
                 ''' Close the connection!'''
                 if pkg.Type == 2:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    # if pkg.Acknowledgement == self.RecAck:
-                    if pkg.Data != None:
-                        self.higherProtocol().data_received(pkg.Data)                                                                                                                                                     
-                        self.RecSeq+=1
+                    if pkg.Acknowledgement == self.expectSeq:
+                        if pkg.Data != None:
+                            self.higherProtocol().data_received(pkg.Data)                                                                                                                                                     
+                            self.RecSeq+=1
+                            dataAck = PEEPPacket()
+                            dataAck.Type = 2
+                            dataAck.Checksum = 0
+                            dataAck.SequenceNumber = 0
+                            dataAck.Acknowledgement = pkg.SequenceNumber
+                            dataAck.updateChecksum()
+                            self.transport.write(dataAck.__serialize__())
+                        self.window.append(pkg.Acknowledgement)
+                        self.expectSeq = pkg.Acknowledgement
+                
+                if pkg.Type == 5:
+                    
+                    print("Server: Data packets received!", pkg.SequenceNumber)
+                    if self.expectSeq == pkg.SequenceNumber:
+                        if not pkg.verifyChecksum():
+                            print("Required resent packet because of checksum error!")
+                        self.higherProtocol().data_received(pkg.Data)                                                                                                                                           
                         dataAck = PEEPPacket()
                         dataAck.Type = 2
                         dataAck.Checksum = 0
+                        dataAck.SequenceNumber = 0
+                        dataAck.Data = b""
+                        #dataAck.Acknowledgement = 0
                         dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
                         dataAck.updateChecksum()
                         self.transport.write(dataAck.__serialize__())
-                    self.window.append(pkg.Acknowledgement)
-                    self.RecAck = pkg.Acknowledgement
-                
-                if pkg.Type == 5:
-                    print("Server: Data packets received!", pkg.SequenceNumber)
-                    if not pkg.verifyChecksum():
-                        print("Required resent packet because of checksum error!")
-                    self.higherProtocol().data_received(pkg.Data)                                                                                                                                         
-                    self.RecSeq = self.RecSeq+ len(pkg.Data)
-                    dataAck = PEEPPacket()
-                    dataAck.Type = 2
-                    dataAck.Checksum = 0
-                    dataAck.SequenceNumber = 0
-                    dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
-                    dataAck.Data = None
-                    print("Sent packet") 
-                    dataAck.updateChecksum()
-                    self.transport.write(dataAck.__serialize__())
-            
-                    
+                        self.expectSeq = dataAck.Acknowledgement
+                    else:
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Checksum = 0
+                        dataAck.SequenceNumber = 0
+                        dataAck.Data = b""
+                        dataAck.Acknowledgement = self.expectSeq
+                        #dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
                 if pkg.Type == 3:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")

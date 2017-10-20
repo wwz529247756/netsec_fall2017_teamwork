@@ -26,7 +26,7 @@ class ClientAppProtocol(Protocol):
 
     def echo(self):
         mypacket = AppPacket()
-        mypacket.Message = "1111111132222222333343333445555565666760"
+        mypacket.Message = "1111111132222222333343333445555565666766778788990900000"
         self.transport.write(mypacket.__serialize__())
         '''
         while(True):
