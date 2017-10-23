@@ -75,8 +75,8 @@ class TranCliProto(StackingProtocol):
                     
                     AckPkt.Acknowledgement = self.RecSeq + 1
                     AckPkt.updateChecksum()
-                    self.loop.call_later(1,self.initResent)
-                    self.loop.call_later(1,self.higherConnectionmade,AckPkt)
+                    self.loop.call_later(0.5,self.initResent)
+                    self.loop.call_later(0.5,self.higherConnectionmade,AckPkt)
                     print("Client: Ack sent! Acknowledgement Number: {0}", AckPkt.Acknowledgement)
 
 
@@ -160,14 +160,14 @@ class TranCliProto(StackingProtocol):
         if len(data)!=0:
             self.data = data
             self.higherTransport.sent(data)
-            self.loop.call_later(1,self.sentpackets, self.data)
+            self.loop.call_later(0.5,self.sentpackets, self.data)
 
     def resentHandshake(self,pkg):
         if self.sentCount > 0 and self.resentFlag == True:
             self.sentCount = self.sentCount-1
             print("Resent packet type:", pkg.Type)
             self.transport.write(pkg.__serialize__())
-            self.loop.call_later(1,self.resentHandshake, pkg)
+            self.loop.call_later(0.5,self.resentHandshake, pkg)
         elif self.sentCount<=0:
             self.connection_lost("Timeout")
             
@@ -176,7 +176,7 @@ class TranCliProto(StackingProtocol):
             self.sentCount = self.sentCount-1
             print("Resent packet type:", pkg.Type)
             self.transport.write(pkg.__serialize__())
-            self.loop.call_later(1,self.higherConnectionmade, pkg)
+            self.loop.call_later(0.5,self.higherConnectionmade, pkg)
         else:
             self.resentFlag = False
             self.Status = 2
