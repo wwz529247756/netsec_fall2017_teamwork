@@ -15,7 +15,7 @@ class TranTransport(StackingTransport):
         self.protocol = protocol
         self.buffer = []        #Packet buffer
         self.Size = 10
-        self.windowSize = 2 * self.Size
+        self.windowSize = 5 * self.Size
         self.protocol.packetsize = self.Size
         self.window = []  # Sliding window: recording the sequence number of the packets that has been sent
         self.pktseqStore = []  # To store bytes that have been transmitted
@@ -53,21 +53,45 @@ class TranTransport(StackingTransport):
     def checkAck(self): # compare acks with seqs
         self.seqStore.sort()
         self.protocol.window.sort()
-        
-        for i in range(0,len(self.seqStore),1):
+        if len(self.seqStore)>len(self.protocol.window):
+            if self.seqStore[0] < self.protocol.window[0]:
+                self.protocol.SenSeq = self.protocol.window[0]
+                self.currentlen = self.protocol.window[0]-self.baselen
+            else:
+                for i in range(0,len(self.protocol.window),1):
+                    if self.seqStore[i]!=self.protocol.window[i]:
+                        if i==len(self.seqStore)-1 :
+                            self.protocol.SenSeq = self.seqStore[i]-self.lastsize
+                            self.currentlen = self.seqStore[i]-self.lastsize-self.baselen
+                        else:
+                            self.protocol.SenSeq = self.seqStore[i]-self.Size
+                            self.currentlen = self.seqStore[i]-self.Size-self.baselen
+                        self.seqStore=[]
+                        self.protocol.window=[]
+                        print("test:checkAck")
+                        return
+                self.protocol.SenSeq = self.seqStore[len(self.protocol.window)]-self.Size
+                self.currentlen = self.seqStore[len(self.protocol.window)]-self.Size-self.baselen
+        else:
+            if self.seqStore[0] < self.protocol.window[0]:
+                self.protocol.SenSeq = self.protocol.window[0]
+                self.currentlen = self.protocol.window[0]-self.baselen
             
-            if self.seqStore[i]!=self.protocol.window[i]:
-                if i==len(self.seqStore)-1 :
-                    self.protocol.SenSeq = self.seqStore[i]-self.lastsize
-                    self.currentlen = self.seqStore[i]-self.lastsize-self.baselen
-                else:
-                    self.protocol.SenSeq = self.seqStore[i]-self.Size
-                    self.currentlen = self.seqStore[i]-self.Size-self.baselen
-                break
-            elif i==len(self.seqStore)-1:
-                self.protocol.SenSeq = self.seqStore[i]
-                self.currentlen = self.seqStore[i]-self.baselen
-                break
+            else:
+                for i in range(0,len(self.seqStore),1):
+                    
+                    if self.seqStore[i]!=self.protocol.window[i]:
+                        if i==len(self.seqStore)-1 :
+                            self.protocol.SenSeq = self.seqStore[i]-self.lastsize
+                            self.currentlen = self.seqStore[i]-self.lastsize-self.baselen
+                        else:
+                            self.protocol.SenSeq = self.seqStore[i]-self.Size
+                            self.currentlen = self.seqStore[i]-self.Size-self.baselen
+                        break
+                    elif i==len(self.seqStore)-1:
+                        self.protocol.SenSeq = self.seqStore[i]
+                        self.currentlen = self.seqStore[i]-self.baselen
+                        break
         
         self.seqStore=[]
         self.protocol.window=[]

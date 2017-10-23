@@ -168,7 +168,7 @@ class TranCliProto(StackingProtocol):
         if len(data)!=0:
             self.data = data
             self.higherTransport.sent(data)
-            self.loop.call_later(2,self.sentpackets, self.data)
+            self.loop.call_later(1,self.sentpackets, self.data)
 
     
     def close_request(self):
