@@ -19,14 +19,12 @@ class ClientAppProtocol(Protocol):
         print("Client: Application layer connection made! ")
         self.transport = transport
         self.echo()
-        #self.transport.close()
-
     def data_received(self, data):
         print("Data received by client")
 
     def echo(self):
         mypacket = AppPacket()
-        mypacket.Message = "1111111132222222333343333445555565666766778788990900000"
+        mypacket.Message = "This is the transport layer test!"
         self.transport.write(mypacket.__serialize__())
         '''
         while(True):

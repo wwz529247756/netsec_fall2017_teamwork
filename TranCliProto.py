@@ -43,6 +43,11 @@ class TranCliProto(StackingProtocol):
         self.window = []
         self.deserializer = PacketType.Deserializer()
         self.RecAck = 0
+        self.sentCount = 0
+        self.initCount = 3
+        self.resentFlag = False
+        self.randomSeq = random.randint(0, 1000)
+        
     def connection_made(self, transport):
         print("Client: TranCliProto Connection made")
         self.transport = transport
@@ -55,29 +60,27 @@ class TranCliProto(StackingProtocol):
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
             if self.Status == 1:
-                if pkt.Type == 1 and pkt.Acknowledgement == (self.SenSeq + 1):
+                if pkt.Type == 1 and pkt.Acknowledgement == self.SenSeq:
+                    print("received packet!")
+                    
+                    self.resentFlag = False  #init resent flag
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    print("Client: Ack+Syn received! Sequence Number:{0} Acknowledgement Number:{1}",pkt.SequenceNumber,pkt.Acknowledgement)
+                    print("Client: Ack+Syn received! Sequence Number: Acknowledgement Number:",pkt.SequenceNumber,pkt.Acknowledgement)
                     self.RecSeq = pkt.SequenceNumber
                     AckPkt = PEEPPacket()
                     AckPkt.Type = 2
                     AckPkt.Checksum = 0
                     AckPkt.SequenceNumber = self.SenSeq
-                    self.SenSeq+=1
+                    
                     AckPkt.Acknowledgement = self.RecSeq + 1
                     AckPkt.updateChecksum()
-                    self.transport.write(AckPkt.__serialize__())
+                    self.loop.call_later(1,self.initResent)
+                    self.loop.call_later(1,self.higherConnectionmade,AckPkt)
                     print("Client: Ack sent! Acknowledgement Number: {0}", AckPkt.Acknowledgement)
-                    self.Status = 2
-                    #time.sleep(3)  # test area!!
-                    #self.close_request()
-                    self.higherProtocol().connection_made(self.higherTransport)
 
 
-                else:
-                    self.transport.close()
-            elif self.Status == 2:
+            if self.Status == 2:
                 
                 if self.RecAck == 0:
                     self.RecAck = self.SenSeq
@@ -86,7 +89,7 @@ class TranCliProto(StackingProtocol):
                 '''
                 #Add from this line
                 if pkt.Type == 2:
-                    print("Client: receive ack!: ", pkt.Acknowledgement)
+                    print("Client: Ack Packet acknowledgement number: ", pkt.Acknowledgement)
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     
@@ -102,10 +105,6 @@ class TranCliProto(StackingProtocol):
                         self.transport.write(dataAck.__serialize__())
                     
                     self.window.append(pkt.Acknowledgement)
-                    
-                    #self.RecAck = pkt.Acknowledgement
-
-                #End at this line
                 if pkt.Type == 5:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
@@ -118,14 +117,6 @@ class TranCliProto(StackingProtocol):
                     dataAck.Acknowledgement = self.SequenceNumber
                     dataAck.updateChecksum()
                     self.transport.write(dataAck.__serialize__())
-                '''
-                if pkt.Type == 5:
-                    if not pkt.verifyChecksum():
-                        print("Required resent packet because of checksum error!")
-                    self.higherProtocol().data_received(pkt.Data)
-                    self.RecSeq+=1
-                '''
-
             elif self.Status == 3:
                 if pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq + 1:  # RIP-ACK
                     if not pkt.verifyChecksum():
@@ -157,12 +148,13 @@ class TranCliProto(StackingProtocol):
         handshakeRequest = PEEPPacket()
         handshakeRequest.Type = 0
         handshakeRequest.Acknowledgement = 0
-        handshakeRequest.SequenceNumber = random.randint(0, 1000)  # currently the range is [0,99]
+        handshakeRequest.SequenceNumber =  self.randomSeq # currently the range is [0,99]
         handshakeRequest.Checksum = 0  # have to be improved in the future
         handshakeRequest.updateChecksum()
-        self.SenSeq = handshakeRequest.SequenceNumber
-        print("Client: Connection Request sent! Sequence Number:{0}", handshakeRequest.SequenceNumber)
-        self.transport.write(handshakeRequest.__serialize__())
+        self.SenSeq = self.randomSeq+1
+        print("Client: Connection Request sent! Sequence Number:", handshakeRequest.SequenceNumber)
+        self.initResent()
+        self.resentHandshake(handshakeRequest)
     
     def sentpackets(self,data):
         if len(data)!=0:
@@ -170,6 +162,30 @@ class TranCliProto(StackingProtocol):
             self.higherTransport.sent(data)
             self.loop.call_later(1,self.sentpackets, self.data)
 
+    def resentHandshake(self,pkg):
+        if self.sentCount > 0 and self.resentFlag == True:
+            self.sentCount = self.sentCount-1
+            print("Resent packet type:", pkg.Type)
+            self.transport.write(pkg.__serialize__())
+            self.loop.call_later(1,self.resentHandshake, pkg)
+        elif self.sentCount<=0:
+            self.connection_lost("Timeout")
+            
+    def higherConnectionmade(self,pkg):
+        if self.sentCount > 0 and self.resentFlag == True:
+            self.sentCount = self.sentCount-1
+            print("Resent packet type:", pkg.Type)
+            self.transport.write(pkg.__serialize__())
+            self.loop.call_later(1,self.higherConnectionmade, pkg)
+        else:
+            self.resentFlag = False
+            self.Status = 2
+            self.higherProtocol().connection_made(self.higherTransport)
+    
+    
+    def initResent(self):
+        self.sentCount = self.initCount
+        self.resentFlag = True
     
     def close_request(self):
         '''

@@ -68,7 +68,7 @@ class TranTransport(StackingTransport):
                             self.currentlen = self.seqStore[i]-self.Size-self.baselen
                         self.seqStore=[]
                         self.protocol.window=[]
-                        print("test:checkAck")
+                        print("Acknowledgement Checked!")
                         return
                 self.protocol.SenSeq = self.seqStore[len(self.protocol.window)]-self.Size
                 self.currentlen = self.seqStore[len(self.protocol.window)]-self.Size-self.baselen
@@ -95,7 +95,7 @@ class TranTransport(StackingTransport):
         
         self.seqStore=[]
         self.protocol.window=[]
-        print("test:checkAck")
+        print("Acknowledgement Checked!")
     
             
     def clearance(self):

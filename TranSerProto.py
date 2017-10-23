@@ -36,6 +36,7 @@ class TranSerProto(StackingProtocol):
         self.deserializer = PacketType.Deserializer()
         self.higherTransport = None
         self.expectSeq =0
+        self.randSeq = random.randint(0, 1000)
 
     def connection_made(self, transport):
         print("Server: TranSerProto Connection made!")
@@ -56,23 +57,22 @@ class TranSerProto(StackingProtocol):
                     tmpkg = PEEPPacket()
                     tmpkg.Type = 1
                     tmpkg.Checksum = 0
-                    tmpkg.SequenceNumber = random.randint(0, 1000)
+                    tmpkg.SequenceNumber = self.randSeq
                     self.SenSeq = tmpkg.SequenceNumber
                     tmpkg.Acknowledgement = self.RecSeq + 1
                     tmpkg.updateChecksum()
-                    self.transport.write(tmpkg.__serialize__())
-                    self.Status = 1
                     print("Server: Ack+Syn sent!")
+                    self.transport.write(tmpkg.__serialize__())
+                    
+                if pkg.Type == 2:
+                    self.Status = 1
             elif self.Status == 1:
                 if pkg.Type == 2:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                        # do something for errors
                     print("Server: ACK received!")
                     if pkg.Acknowledgement == self.SenSeq + 1:
                         self.RecSeq = pkg.SequenceNumber
-                        self.Status = "Activated"
-                        
                         self.higherProtocol().connection_made(self.higherTransport)
                         self.Status = 2
                         print("Server: Activated!")
@@ -80,7 +80,7 @@ class TranSerProto(StackingProtocol):
                         self.transport.close()
             elif self.Status == 2:
                 if self.expectSeq == 0:
-                    self.expectSeq = pkg.SequenceNumber
+                    self.expectSeq = self.RecSeq
                 ''' Close the connection!'''
                 if pkg.Type == 2:
                     if not pkg.verifyChecksum():
@@ -101,7 +101,7 @@ class TranSerProto(StackingProtocol):
                 
                 if pkg.Type == 5:
                     
-                    print("Server: Data packets received!", pkg.SequenceNumber)
+                    print("Server: Data packets Sequence Number:", pkg.SequenceNumber)
                     if self.expectSeq == pkg.SequenceNumber:
                         if not pkg.verifyChecksum():
                             print("Required resent packet because of checksum error!")
