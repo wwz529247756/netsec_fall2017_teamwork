@@ -4,7 +4,7 @@ Created on 2017年10月5日
 @author: wangweizhou
 '''
 from playground.network.common import StackingTransport
-from HandShakePacket import PEEPPacket
+from .HandShakePacket import PEEPPacket
 import random
 import asyncio
 
@@ -14,7 +14,7 @@ class TranTransport(StackingTransport):
         self._lowerTransport = lowerTransport
         self.protocol = protocol
         self.buffer = []        #Packet buffer
-        self.Size = 10
+        self.Size = 20
         self.windowSize = 5 * self.Size
         self.protocol.packetsize = self.Size
         self.window = []  # Sliding window: recording the sequence number of the packets that has been sent
@@ -45,7 +45,7 @@ class TranTransport(StackingTransport):
                 self.protocol.SenSeq = Pkt.SequenceNumber+ len(unit)
                 Pkt.Acknowledgement = 0
                 Pkt.Data = unit
-                Pkt.Checksum = 0
+                #Pkt.Checksum = 0
                 Pkt.updateChecksum()
                 self.lowerTransport().write(Pkt.__serialize__())
                 self.seqStore.append(self.protocol.SenSeq)

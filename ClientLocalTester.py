@@ -17,7 +17,7 @@ from TranCliProto import TranCliProto
 
 if __name__=='__main__':
     loop = get_event_loop()
-    f = StackingProtocolFactory(lambda: ClientPassThrough(), lambda: TranCliProto(loop))
+    f = StackingProtocolFactory(lambda: ClientPassThrough(), lambda: TranCliProto())
     ptConnector = playground.Connector(protocolStack=f)
     playground.setConnector('ClientStack', ptConnector)
     connect = playground.getConnector('ClientStack').create_playground_connection (lambda:ClientAppProtocol(), '20174.1.1.1', 8998)

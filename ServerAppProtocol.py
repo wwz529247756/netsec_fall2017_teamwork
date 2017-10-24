@@ -11,11 +11,6 @@ from HandShakePacket import PEEPPacket
 from AppPacket import AppPacket
 
 
-class AppPacket(PacketType):
-    DEFINITION_IDENTIFIER = "AppRequest"
-    DEFINITION_VERSION = "1.0"
-    FIELDS=[("Message",STRING),
-            ("State",UINT8)]
 
 class ServerAppProtocol(Protocol):
     def __init__(self):
@@ -24,13 +19,20 @@ class ServerAppProtocol(Protocol):
     def connection_made(self, transport):
         print("Server: Application layer connection made! ")
         self.transport = transport
+        #self.echo()
 
-
+    def echo(self):
+        mypacket = AppPacket()
+        mypacket.Message = "This is the transport layer test!1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+        self.transport.write(mypacket.__serialize__())
+        
     def data_received(self, data):
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
             msg = pkt.Message
             print("Server:"+msg)
+            self.echo()
+            
         
 
     def connection_lost(self, exc):

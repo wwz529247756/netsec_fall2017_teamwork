@@ -20,11 +20,14 @@ class ClientAppProtocol(Protocol):
         self.transport = transport
         self.echo()
     def data_received(self, data):
-        print("Data received by client")
+        self.deserializer.update(data)
+        for pkt in self.deserializer.nextPackets():
+            msg = pkt.Message
+            print("Client:"+msg)
 
     def echo(self):
         mypacket = AppPacket()
-        mypacket.Message = "This is the transport layer test!"
+        mypacket.Message = "This is the transport layer test!222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
         self.transport.write(mypacket.__serialize__())
         '''
         while(True):

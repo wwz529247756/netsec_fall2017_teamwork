@@ -22,7 +22,7 @@ class ClientPassThrough(StackingProtocol):
         self.higherProtocol().connection_made(higherTransport)
         
     def data_received(self,data):
-        print("Data received ClientPassThrough")
+        #print("Data received ClientPassThrough")
         self.data = data
         self.higherProtocol().data_received(self.data)
     

@@ -1,12 +1,12 @@
-import asyncio
+from asyncio import *
 import playground
-from HandShakePacket import PEEPPacket
+from .HandShakePacket import PEEPPacket
 from playground.network.packet import PacketType
 from playground.network.common import PlaygroundAddress
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingProtocol
 from playground.network.common import StackingTransport
-from myTransport import TranTransport
+from .myTransport import TranTransport
 import random
 import time
 #from asyncio.windows_events import NULL
@@ -25,16 +25,9 @@ Client:
 
 
 class TranCliProto(StackingProtocol):
-    def __init__(self,loop):
-        '''
-            Init TranCliProto: 
-            self.RecSeq is to record sequential number from Server
-            self.Status is to record protocol status Activated or InActivated 
-            checking for the handshake processing
-            
-        '''
+    def __init__(self):
         self.data = None
-        self.loop = loop
+        self.loop = get_event_loop()
         self.transport = None
         self.Status = 0
         self.RecSeq = 0
@@ -42,7 +35,7 @@ class TranCliProto(StackingProtocol):
         self.higherTransport = None
         self.window = []
         self.deserializer = PacketType.Deserializer()
-        self.RecAck = 0
+        self.expectSeq = 0
         self.sentCount = 0
         self.initCount = 3
         self.resentFlag = False
@@ -74,6 +67,7 @@ class TranCliProto(StackingProtocol):
                     AckPkt.SequenceNumber = self.SenSeq
                     
                     AckPkt.Acknowledgement = self.RecSeq + 1
+                    self.RecSeq=AckPkt.Acknowledgement
                     AckPkt.updateChecksum()
                     self.loop.call_later(0.5,self.initResent)
                     self.loop.call_later(0.5,self.higherConnectionmade,AckPkt)
@@ -82,12 +76,9 @@ class TranCliProto(StackingProtocol):
 
             if self.Status == 2:
                 
-                if self.RecAck == 0:
-                    self.RecAck = self.SenSeq
-                '''
-                    Protocol Activated Transport data HERE!
-                '''
-                #Add from this line
+                if self.expectSeq == 0:
+                    self.expectSeq = self.RecSeq
+                    print(self.expectSeq)      #test
                 if pkt.Type == 2:
                     print("Client: Ack Packet acknowledgement number: ", pkt.Acknowledgement)
                     if not pkt.verifyChecksum():
@@ -106,17 +97,31 @@ class TranCliProto(StackingProtocol):
                     
                     self.window.append(pkt.Acknowledgement)
                 if pkt.Type == 5:
-                    if not pkt.verifyChecksum():
-                        print("Required resent packet because of checksum error!")
-                    self.higherProtocol().data_received(pkt.Data)                                                                                                                                                     
-                    self.RecSeq += len(pkt.Data)
-                    dataAck = PEEPPacket()
-                    dataAck.Type = 2
-                    dataAck.Checksum = 0
-                    dataAck.SequenceNumber = 0
-                    dataAck.Acknowledgement = self.SequenceNumber
-                    dataAck.updateChecksum()
-                    self.transport.write(dataAck.__serialize__())
+                    print("Client: Data packets Sequence Number:", pkt.SequenceNumber)
+                    if self.expectSeq == pkt.SequenceNumber:
+                        if not pkt.verifyChecksum():
+                            print("Required resent packet because of checksum error!")
+                        self.higherProtocol().data_received(pkt.Data)                                                                                                                                           
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Checksum = 0
+                        dataAck.SequenceNumber = 0
+                        dataAck.Data = b""
+                        dataAck.Acknowledgement = pkt.SequenceNumber + len(pkt.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
+                        self.expectSeq = dataAck.Acknowledgement
+                    else:
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Checksum = 0
+                        dataAck.SequenceNumber = 0
+                        dataAck.Data = b""
+                        dataAck.Acknowledgement = self.expectSeq
+                        #dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
+                    
             elif self.Status == 3:
                 if pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq + 1:  # RIP-ACK
                     if not pkt.verifyChecksum():
@@ -173,7 +178,7 @@ class TranCliProto(StackingProtocol):
             
     def higherConnectionmade(self,pkg):
         if self.sentCount > 0 and self.resentFlag == True:
-            self.sentCount = self.sentCount-1
+            self.sentCount = self.sentCount-3
             print("Resent packet type:", pkg.Type)
             self.transport.write(pkg.__serialize__())
             self.loop.call_later(0.5,self.higherConnectionmade, pkg)
