@@ -36,13 +36,14 @@ class TranTransport(StackingTransport):
         
     def sent(self,data):
         if len(data)!=0:
-            if len(self.protocol.window)!=0:
-                self.checkAck()
+            
+            self.checkAck()
             self.baselen = self.protocol.SenSeq
             self.buffer = data
             self.buffer = self.buffer[self.currentlen:len(self.buffer)]
             self.protocol.data = self.buffer
             self.window = self.buffer[0:self.windowSize]
+            print("Checkpoint!")
             for i in range(0, len(self.window), self.Size):
                 unit = self.buffer[i:(i+self.Size)]
                 Pkt = PEEPPacket()
@@ -59,8 +60,11 @@ class TranTransport(StackingTransport):
     def checkAck(self): # compare acks with seqs
         self.seqStore.sort()
         self.protocol.window.sort()
-        if self.protocol.window[len(self.protocol.window)-1]>self.maxAck:
-            self.maxAck = self.protocol.window[len(self.protocol.window)-1]
+        if len(self.protocol.window)!=0:
+            if self.protocol.window[len(self.protocol.window)-1]>self.maxAck:
+                self.maxAck = self.protocol.window[len(self.protocol.window)-1]
+        else:
+            self.maxAck = self.baselen
         self.protocol.SenSeq = self.maxAck
         self.currentlen = self.maxAck-self.baselen
         self.seqStore=[]
