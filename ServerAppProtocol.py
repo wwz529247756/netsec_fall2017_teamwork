@@ -19,7 +19,7 @@ class ServerAppProtocol(Protocol):
     def connection_made(self, transport):
         print("Server: Application layer connection made! ")
         self.transport = transport
-        #self.echo()
+        self.echo()
 
     def echo(self):
         mypacket = AppPacket()
@@ -31,7 +31,7 @@ class ServerAppProtocol(Protocol):
         for pkt in self.deserializer.nextPackets():
             msg = pkt.Message
             print("Server:"+msg)
-            self.echo()
+            #self.echo()
             
         
 

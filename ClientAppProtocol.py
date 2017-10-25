@@ -13,21 +13,27 @@ from AppPacket import AppPacket
 
 class ClientAppProtocol(Protocol):
     def __init__(self):
+        self.loop = get_event_loop()
         self.transport=None        # transport contains the data you need to transfer while connecting
         self.deserializer = PacketType.Deserializer()
     def connection_made(self, transport):
         print("Client: Application layer connection made! ")
         self.transport = transport
-        self.echo()
+        #self.echo()
+        #self.loop.call_later(8,self.echo)
+        
+        
+        
     def data_received(self, data):
         self.deserializer.update(data)
         for pkt in self.deserializer.nextPackets():
             msg = pkt.Message
             print("Client:"+msg)
+            self.transport.close()
 
     def echo(self):
         mypacket = AppPacket()
-        mypacket.Message = "This is the transport layer test!222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+        mypacket.Message = "This is the transport layer test!22222222222222222222222222222222222222222"
         self.transport.write(mypacket.__serialize__())
         '''
         while(True):

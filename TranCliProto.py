@@ -69,8 +69,11 @@ class TranCliProto(StackingProtocol):
                     AckPkt.Acknowledgement = self.RecSeq + 1
                     self.RecSeq=AckPkt.Acknowledgement
                     AckPkt.updateChecksum()
-                    self.loop.call_later(0.5,self.initResent)
-                    self.loop.call_later(0.5,self.higherConnectionmade,AckPkt)
+                    self.transport.write(AckPkt.__serialize__())
+                    self.Status = 2
+                    self.higherProtocol().connection_made(self.higherTransport)
+                    #self.loop.call_later(0.5,self.initResent)
+                    #self.loop.call_later(0.5,self.higherConnectionmade,AckPkt)
                     print("Client: Ack sent! Acknowledgement Number: {0}", AckPkt.Acknowledgement)
 
 
@@ -122,31 +125,33 @@ class TranCliProto(StackingProtocol):
                         dataAck.updateChecksum()
                         self.transport.write(dataAck.__serialize__())
                     
-            elif self.Status == 3:
-                if pkt.Type == 4 and pkt.Acknowledgement == self.SenSeq + 1:  # RIP-ACK
-                    if not pkt.verifyChecksum():
-                        print("Required resent packet because of checksum error!")
-                    '''
-                        Stop sendind data and WAIT!
-                    '''
-                    self.Status = 4
-                    print("Client: Waiting for Server close the transport!")
-            elif self.Status == 4:
                 if pkt.Type == 3:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    print("Client: Rip from server received!")
+                    print("Server: Rip received from Client!")
                     self.RecSeq = pkt.SequenceNumber
-                    clientRip = PEEPPacket()
-                    clientRip.Type = 4
-                    clientRip.Checksum = 0
-                    clientRip.SequenceNumber = 0
+                    ServerRipAckPacket = PEEPPacket()
+                    ServerRipAckPacket.Type = 4
                     self.RecSeq += 1
-                    clientRip.Acknowledgement = self.RecSeq
-                    clientRip.updateChecksum()
-                    self.transport.write(clientRip.__serialize__())
-                    self.Status=0
-                    self.connection_lost("End")
+                    ServerRipAckPacket.Acknowledgement = self.RecSeq
+                    self.SenSeq += 1
+                    ServerRipAckPacket.SequenceNumber = self.SenSeq
+                    self.Status = "HalfActivated"
+                    ServerRipAckPacket.Checksum = 0
+                    ServerRipAckPacket.updateChecksum()
+                    self.transport.write(ServerRipAckPacket.__serialize__())
+                    self.connection_lost("client request")
+                    '''
+                        Only transfer data in the buffer!
+                        Waiting for the transportation complete!
+                    '''
+            if self.Status ==3:
+                if pkt.Type == 4:
+                    if not pkt.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    print("Server: Rip-Ack received!")
+                    self.Status = 0
+                    self.connection_lost("client request")
                 
 
     def connection_request(self):
@@ -164,9 +169,8 @@ class TranCliProto(StackingProtocol):
     def sentpackets(self,data):
         if len(data)!=0:
             self.data = data
-            self.higherTransport.sent(data)
+            self.higherTransport.sent(self.data)
             self.loop.call_later(0.5,self.sentpackets, self.data)
-
     def resentHandshake(self,pkg):
         if self.sentCount > 0 and self.resentFlag == True:
             self.sentCount = self.sentCount-1

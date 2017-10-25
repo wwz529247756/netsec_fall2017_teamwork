@@ -22,7 +22,7 @@ class ServerPassThrough(StackingProtocol):
         self.higherProtocol().connection_made(higherTransport)
         
     def data_received(self,data):
-        #print("Data received by FIRST layer!")
+        print("Data received by FIRST layer!")
         self.data = data
         self.higherProtocol().data_received(self.data)
     

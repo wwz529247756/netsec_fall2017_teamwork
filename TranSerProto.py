@@ -68,6 +68,7 @@ class TranSerProto(StackingProtocol):
                     print("Server: Ack+Syn sent!")
                     self.transport.write(tmpkg.__serialize__())
                     
+                    
                 if pkg.Type == 2:
                     self.Status = 1
             if self.Status == 1:
@@ -147,39 +148,27 @@ class TranSerProto(StackingProtocol):
                     ServerRipAckPacket.Checksum = 0
                     ServerRipAckPacket.updateChecksum()
                     self.transport.write(ServerRipAckPacket.__serialize__())
-                    self.Status = 3
+                    self.connection_lost("client request")
                     '''
                         Only transfer data in the buffer!
                         Waiting for the transportation complete!
                     '''
             if self.Status ==3:
-                    print("Server: Waiting for the transportation complete!")
-                    print("Server: Rip sent to the Client!")
-                    ServerRip = PEEPPacket()  # Send Rip package after transport data from buffer
-                    ServerRip.Type = 3
-                    self.SenSeq += 1
-                    ServerRip.SequenceNumber = self.SenSeq
-                    ServerRip.Checksum = 0
-                    ServerRip.Acknowledgement = 0
-                    ServerRip.updateChecksum()
-                    self.transport.write(ServerRip.__serialize__())
-                    self.Status = 4
-            elif self.Status == 4:
-                if pkg.Type == 4 and pkg.Acknowledgement == self.SenSeq + 1:
+                if pkg.Type == 4:
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     print("Server: Rip-Ack received!")
                     self.Status = 0
-                    self.connection_lost("Client request")
+                    self.connection_lost("server request")
                     
     def sentpackets(self,data):
         if len(data)!=0:
             self.data = data
             self.higherTransport.sent(data)
-            self.loop.call_later(1,self.sentpackets, self.data)
+            self.loop.call_later(0.5,self.sentpackets, self.data)
     
 
     def connection_lost(self, exc):
         self.higherProtocol().connection_lost(exc)
-        self.transport.close()
+        self.higherTransport().lowerTransport().close()
         print('Connection stopped because {}'.format(exc))
