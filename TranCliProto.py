@@ -34,7 +34,7 @@ class TranCliProto(StackingProtocol):
         self.SenSeq = 0
         self.higherTransport = None
         self.window = []
-        self.deserializer = PacketType.Deserializer()
+        self.deserializer = PEEPPacket.Deserializer()
         self.expectSeq = 0
         self.sentCount = 0
         self.initCount = 3
@@ -121,7 +121,6 @@ class TranCliProto(StackingProtocol):
                         dataAck.SequenceNumber = 0
                         dataAck.Data = b""
                         dataAck.Acknowledgement = self.expectSeq
-                        #dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
                         dataAck.updateChecksum()
                         self.transport.write(dataAck.__serialize__())
                     
@@ -163,6 +162,7 @@ class TranCliProto(StackingProtocol):
         handshakeRequest.updateChecksum()
         self.SenSeq = self.randomSeq+1
         print("Client: Connection Request sent! Sequence Number:", handshakeRequest.SequenceNumber)
+        #self.transport.write(handshakeRequest.__serialize__())
         self.initResent()
         self.resentHandshake(handshakeRequest)
     

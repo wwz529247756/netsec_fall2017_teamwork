@@ -16,10 +16,11 @@ class ServerAppProtocol(Protocol):
     def __init__(self):
         self.transport=None        # transport contains the data you need to transfer while connecting
         self.deserializer = PacketType.Deserializer()
+        self.loop = get_event_loop()
     def connection_made(self, transport):
         print("Server: Application layer connection made! ")
         self.transport = transport
-        self.echo()
+        #self.loop.call_later(5,self.echo())
 
     def echo(self):
         mypacket = AppPacket()
@@ -31,6 +32,7 @@ class ServerAppProtocol(Protocol):
         for pkt in self.deserializer.nextPackets():
             msg = pkt.Message
             print("Server:"+msg)
+            self.loop.call_later(1,self.echo)
             #self.echo()
             
         

@@ -19,7 +19,7 @@ class ClientAppProtocol(Protocol):
     def connection_made(self, transport):
         print("Client: Application layer connection made! ")
         self.transport = transport
-        #self.echo()
+        self.echo()
         #self.loop.call_later(8,self.echo)
         
         
@@ -29,7 +29,9 @@ class ClientAppProtocol(Protocol):
         for pkt in self.deserializer.nextPackets():
             msg = pkt.Message
             print("Client:"+msg)
-            self.transport.close()
+            self.loop.call_later(1,self.echo)
+            #self.echo()
+            #self.transport.close()
 
     def echo(self):
         mypacket = AppPacket()

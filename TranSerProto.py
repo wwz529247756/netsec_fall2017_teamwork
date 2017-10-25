@@ -35,7 +35,7 @@ class TranSerProto(StackingProtocol):
         self.Status = 0
         self.RecSeq = 0
         self.SenSeq = 0
-        self.deserializer = PacketType.Deserializer()
+        self.deserializer = PEEPPacket.Deserializer()
         self.resentFlag = False
         self.sentCount = 0
         self.initCount = 3
