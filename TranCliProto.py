@@ -9,7 +9,7 @@ from playground.network.common import StackingTransport
 from .myTransport import TranTransport
 import random
 import time
-#from asyncio.windows_events import NULL
+
 
 
 '''
@@ -26,7 +26,7 @@ Client:
 
 class TranCliProto(StackingProtocol):
     def __init__(self):
-        self.data = None
+        self.data = b""
         self.loop = get_event_loop()
         self.transport = None
         self.Status = 0
@@ -54,12 +54,11 @@ class TranCliProto(StackingProtocol):
         for pkt in self.deserializer.nextPackets():
             if self.Status == 1:
                 if pkt.Type == 1 and pkt.Acknowledgement == self.SenSeq:
-                    print("received packet!")
                     
                     self.resentFlag = False  #init resent flag
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    print("Client: Ack+Syn received! Sequence Number: Acknowledgement Number:",pkt.SequenceNumber,pkt.Acknowledgement)
+                    print("Client: Ack+Syn received!")
                     self.RecSeq = pkt.SequenceNumber
                     AckPkt = PEEPPacket()
                     AckPkt.Type = 2
@@ -71,19 +70,20 @@ class TranCliProto(StackingProtocol):
                     AckPkt.updateChecksum()
                     self.transport.write(AckPkt.__serialize__())
                     self.Status = 2
+                    print("Client: Ack sent!")
                     self.higherProtocol().connection_made(self.higherTransport)
+                    self.sentpackets()
                     #self.loop.call_later(0.5,self.initResent)
                     #self.loop.call_later(0.5,self.higherConnectionmade,AckPkt)
-                    print("Client: Ack sent! Acknowledgement Number: {0}", AckPkt.Acknowledgement)
+                    
 
 
             if self.Status == 2:
                 
                 if self.expectSeq == 0:
                     self.expectSeq = self.RecSeq
-                    print(self.expectSeq)      #test
                 if pkt.Type == 2:
-                    print("Client: Ack Packet acknowledgement number: ", pkt.Acknowledgement)
+                    #print("Client: Ack Packet acknowledgement number: ", pkt.Acknowledgement)
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     
@@ -100,7 +100,7 @@ class TranCliProto(StackingProtocol):
                     
                     self.window.append(pkt.Acknowledgement)
                 if pkt.Type == 5:
-                    print("Client: Data packets Sequence Number:", pkt.SequenceNumber)
+                    #print("Client: Data packets Sequence Number:", pkt.SequenceNumber)
                     if self.expectSeq == pkt.SequenceNumber:
                         if not pkt.verifyChecksum():
                             print("Required resent packet because of checksum error!")
@@ -166,15 +166,15 @@ class TranCliProto(StackingProtocol):
         self.initResent()
         self.resentHandshake(handshakeRequest)
     
-    def sentpackets(self,data):
-        if len(data)!=0:
-            self.data = data
+    def sentpackets(self):
+        if len(self.data)!=0:
             self.higherTransport.sent(self.data)
-            self.loop.call_later(0.5,self.sentpackets, self.data)
+            #print("sent")
+        self.loop.call_later(0.5,self.sentpackets)
     def resentHandshake(self,pkg):
         if self.sentCount > 0 and self.resentFlag == True:
             self.sentCount = self.sentCount-1
-            print("Resent packet type:", pkg.Type)
+            #print("Resent packet type:", pkg.Type)
             self.transport.write(pkg.__serialize__())
             self.loop.call_later(0.5,self.resentHandshake, pkg)
         elif self.sentCount<=0:
@@ -183,7 +183,7 @@ class TranCliProto(StackingProtocol):
     def higherConnectionmade(self,pkg):
         if self.sentCount > 0 and self.resentFlag == True:
             self.sentCount = self.sentCount-3
-            print("Resent packet type:", pkg.Type)
+            #print("Resent packet type:", pkg.Type)
             self.transport.write(pkg.__serialize__())
             self.loop.call_later(0.5,self.higherConnectionmade, pkg)
         else:

@@ -15,7 +15,7 @@ class TranTransport(StackingTransport):
         self.protocol = protocol
         self.buffer = []        #Packet buffer
         self.Size = 1000
-        self.windowSize = 5 * self.Size
+        self.windowSize = 10 * self.Size
         self.protocol.packetsize = self.Size
         self.window = []  # Sliding window: recording the sequence number of the packets that has been sent
         self.pktseqStore = []  # To store bytes that have been transmitted
@@ -27,12 +27,19 @@ class TranTransport(StackingTransport):
         
 
     def write(self, data):
-        
+        self.protocol.data = self.protocol.data + data
         self.currentlen =0
         self.seqStore=[]
         self.protocol.window = []
         self.baselen = self.protocol.SenSeq
-        self.protocol.sentpackets(data)
+        
+        '''
+        if len(self.protocol.data)==0: 
+            self.protocol.sentpackets(data)
+        else:
+            self.protocol.data = self.protocol.data + data
+        '''
+        
         
     def sent(self,data):
         if len(data)!=0:
@@ -40,22 +47,21 @@ class TranTransport(StackingTransport):
             self.checkAck()
             self.baselen = self.protocol.SenSeq
             self.buffer = data
-            self.buffer = self.buffer[self.currentlen:len(self.buffer)]
-            self.protocol.data = self.buffer
-            self.window = self.buffer[0:self.windowSize]
-            print("Checkpoint!")
+            self.buffer = self.buffer[self.currentlen:len(self.buffer)] #update the length of windows 截取buffer大小
+            self.protocol.data = self.buffer  # 把update的数据传给protocol
+            self.window = self.buffer[0:self.windowSize]  #截取window大小
             for i in range(0, len(self.window), self.Size):
-                unit = self.buffer[i:(i+self.Size)]
-                Pkt = PEEPPacket()
-                Pkt.Type = 5
-                Pkt.SequenceNumber = self.protocol.SenSeq
-                self.protocol.SenSeq = Pkt.SequenceNumber+ len(unit)
-                Pkt.Acknowledgement = 0
-                Pkt.Data = unit
+                unit = self.buffer[i:(i+self.Size)]  #截取每个包的数据，分包
+                Pkt = PEEPPacket() 
+                Pkt.Type = 5  #发送data包
+                Pkt.SequenceNumber = self.protocol.SenSeq #把packet sequence number赋值
+                self.protocol.SenSeq = Pkt.SequenceNumber+ len(unit) # 更新sequence number ,5->15
+                Pkt.Acknowledgement = 0 
+                Pkt.Data = unit #把数据放入data
                 #Pkt.Checksum = 0
                 Pkt.updateChecksum()
-                self.lowerTransport().write(Pkt.__serialize__())
-                self.seqStore.append(self.protocol.SenSeq)
+                self.lowerTransport().write(Pkt.__serialize__()) 
+                self.seqStore.append(self.protocol.SenSeq) 
          
     def checkAck(self): # compare acks with seqs
         self.seqStore.sort()
@@ -69,7 +75,7 @@ class TranTransport(StackingTransport):
         self.currentlen = self.maxAck-self.baselen
         self.seqStore=[]
         self.protocol.window=[]
-        print("Acknowledgement Checked!")
+        #print("Acknowledgement Checked!")
     
             
     def clearance(self):

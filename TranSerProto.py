@@ -27,7 +27,7 @@ from .myTransport import TranTransport
 
 class TranSerProto(StackingProtocol):
     def __init__(self):
-        self.data = None
+        self.data = b""
         self.transport = None
         self.window = []
         self.loop = get_event_loop()
@@ -48,7 +48,7 @@ class TranSerProto(StackingProtocol):
         self.higherTransport = TranTransport(self.transport,self)
 
     def data_received(self, data):
-        self.data = data
+        #self.data = data
         self.deserializer.update(data)
 
         for pkg in self.deserializer.nextPackets():
@@ -82,6 +82,7 @@ class TranSerProto(StackingProtocol):
                         self.SenSeq = pkg.Acknowledgement
                         print("Server: Activated!")
                         self.higherProtocol().connection_made(self.higherTransport)
+                        self.sentpackets()
                         
                     
             elif self.Status == 2:
@@ -90,7 +91,7 @@ class TranSerProto(StackingProtocol):
                     
                 ''' Close the connection!'''
                 if pkg.Type == 2:
-                    print("Server: Ack Packet acknowledgement number: ", pkg.Acknowledgement)
+                    #print("Server: Ack Packet acknowledgement number: ", pkg.Acknowledgement)
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     
@@ -108,7 +109,7 @@ class TranSerProto(StackingProtocol):
                     self.window.append(pkg.Acknowledgement)
                 
                 if pkg.Type == 5:
-                    print("Server: Data packets Sequence Number:", pkg.SequenceNumber)
+                    #print("Server: Data packets Sequence Number:", pkg.SequenceNumber)
                     if self.expectSeq == pkg.SequenceNumber:
                         if not pkg.verifyChecksum():
                             print("Required resent packet because of checksum error!")
@@ -161,11 +162,11 @@ class TranSerProto(StackingProtocol):
                     self.Status = 0
                     self.connection_lost("server request")
                     
-    def sentpackets(self,data):
-        if len(data)!=0:
-            self.data = data
-            self.higherTransport.sent(data)
-            self.loop.call_later(0.5,self.sentpackets, self.data)
+    def sentpackets(self):
+        if len(self.data)!=0:
+            self.higherTransport.sent(self.data)
+            #print("sent")
+        self.loop.call_later(0.5,self.sentpackets)
     
 
     def connection_lost(self, exc):
