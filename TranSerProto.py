@@ -9,10 +9,11 @@ from playground.network.common import StackingProtocol
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingTransport
 from asyncio import *
-from .HandShakePacket import PEEPPacket
+from .HandShakePacket import *
 import playground
 import random
 import time
+#from mypacket import *
 from .myTransport import TranTransport
 '''
     State machine:
@@ -79,22 +80,21 @@ class TranSerProto(StackingProtocol):
                     if pkg.Acknowledgement == self.SenSeq + 1:
                         self.RecSeq = pkg.SequenceNumber
                         self.Status = 2
-                        self.SenSeq = pkg.Acknowledgement
+                        #self.SenSeq = pkg.Acknowledgement
                         print("Server: Activated!")
                         self.higherProtocol().connection_made(self.higherTransport)
                         self.sentpackets()
                         
                     
             elif self.Status == 2:
-                if self.expectSeq == 0:
-                    self.expectSeq = self.RecSeq
+                
                     
                 ''' Close the connection!'''
                 if pkg.Type == 2:
                     #print("Server: Ack Packet acknowledgement number: ", pkg.Acknowledgement)
                     if not pkg.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    
+                    '''
                     if len(pkg.Data) != 0:
                         self.higherProtocol().data_received(pkg.Data)                                                                                                                                                     
                         self.RecSeq+=1
@@ -105,10 +105,12 @@ class TranSerProto(StackingProtocol):
                         dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
                         dataAck.updateChecksum()
                         self.transport.write(dataAck.__serialize__())
-                    
+                    '''
                     self.window.append(pkg.Acknowledgement)
                 
                 if pkg.Type == 5:
+                    if self.expectSeq == 0:
+                        self.expectSeq = pkg.SequenceNumber
                     #print("Server: Data packets Sequence Number:", pkg.SequenceNumber)
                     if self.expectSeq == pkg.SequenceNumber:
                         if not pkg.verifyChecksum():

@@ -15,7 +15,7 @@ class TranTransport(StackingTransport):
         self.protocol = protocol
         self.buffer = []        #Packet buffer
         self.Size = 1000
-        self.windowSize = 10 * self.Size
+        self.windowSize = 3 * self.Size
         self.protocol.packetsize = self.Size
         self.window = []  # Sliding window: recording the sequence number of the packets that has been sent
         self.pktseqStore = []  # To store bytes that have been transmitted
@@ -28,9 +28,9 @@ class TranTransport(StackingTransport):
 
     def write(self, data):
         self.protocol.data = self.protocol.data + data
-        self.currentlen =0
-        self.seqStore=[]
-        self.protocol.window = []
+        #self.currentlen =0
+        #self.seqStore=[]
+        #self.protocol.window = []
         self.baselen = self.protocol.SenSeq
         
         '''

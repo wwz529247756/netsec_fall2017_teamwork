@@ -1,6 +1,6 @@
 from asyncio import *
 import playground
-from .HandShakePacket import PEEPPacket
+from .HandShakePacket import *
 from playground.network.packet import PacketType
 from playground.network.common import PlaygroundAddress
 from playground.network.common import StackingProtocolFactory
@@ -9,7 +9,8 @@ from playground.network.common import StackingTransport
 from .myTransport import TranTransport
 import random
 import time
-
+import logging
+#from asyncio.windows_events import NULL
 
 
 '''
@@ -22,7 +23,8 @@ Client:
     state = 4 ack receive waiting for Rip
 '''
 
-
+logging.getLogger().setLevel(logging.NOTSET)  # this logs *everything*
+logging.getLogger().addHandler(logging.StreamHandler())  # logs to stderr
 
 class TranCliProto(StackingProtocol):
     def __init__(self):
@@ -80,14 +82,14 @@ class TranCliProto(StackingProtocol):
 
             if self.Status == 2:
                 
-                if self.expectSeq == 0:
-                    self.expectSeq = self.RecSeq
+                
                 if pkt.Type == 2:
-                    #print("Client: Ack Packet acknowledgement number: ", pkt.Acknowledgement)
+                    
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
-                    
-                    if len(pkt.Data) != 0:
+                    print("Client: Ack Packet acknowledgement number: ", pkt.Acknowledgement)
+                    '''
+                    if pkt.Data != None:
                         self.higherProtocol().data_received(pkt.Data)                                                                                                                                                     
                         self.RecSeq+=1
                         dataAck = PEEPPacket()
@@ -97,9 +99,14 @@ class TranCliProto(StackingProtocol):
                         dataAck.Acknowledgement = pkt.SequenceNumber + len(pkt.Data)
                         dataAck.updateChecksum()
                         self.transport.write(dataAck.__serialize__())
+                    '''
                     
                     self.window.append(pkt.Acknowledgement)
+                    
                 if pkt.Type == 5:
+                    if self.expectSeq == 0:
+                        self.expectSeq = pkt.SequenceNumber
+                    print("expectSeq", self.expectSeq)
                     #print("Client: Data packets Sequence Number:", pkt.SequenceNumber)
                     if self.expectSeq == pkt.SequenceNumber:
                         if not pkt.verifyChecksum():
