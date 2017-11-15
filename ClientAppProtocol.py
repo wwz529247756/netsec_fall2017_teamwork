@@ -8,8 +8,8 @@ from playground.network.packet import PacketType
 import playground
 from asyncio import *
 from ctypes.test.test_random_things import callback_func
-from HandShakePacket import PEEPPacket
-from AppPacket import AppPacket
+from .HandShakePacket import PEEPPacket
+from .AppPacket import AppPacket
 
 class ClientAppProtocol(Protocol):
     def __init__(self):
@@ -29,8 +29,8 @@ class ClientAppProtocol(Protocol):
         for pkt in self.deserializer.nextPackets():
             msg = pkt.Message
             print("Client:"+msg)
-            self.loop.call_later(1,self.echo)
-            #self.echo()
+            #self.loop.call_later(1,self.echo)
+            self.echo()
             #self.transport.close()
 
     def echo(self):

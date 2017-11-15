@@ -7,8 +7,8 @@ from playground.network.packet.fieldtypes import UINT32, STRING, BUFFER,BOOL,UIN
 from playground.network.packet import PacketType
 import playground
 from asyncio import *
-from HandShakePacket import PEEPPacket
-from AppPacket import AppPacket
+from .HandShakePacket import PEEPPacket
+from .AppPacket import AppPacket
 
 
 

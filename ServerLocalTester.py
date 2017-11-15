@@ -9,10 +9,10 @@ from playground.network.common import StackingProtocol
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingTransport
 import playground
-import HandShakePacket
-from TranSerProto import *
-from ServerPassThrough import *
-from ServerAppProtocol import *
+import .HandShakePacket
+from .TranSerProto import *
+from .ServerPassThrough import *
+from .ServerAppProtocol import *
 from asyncio import *
 
 

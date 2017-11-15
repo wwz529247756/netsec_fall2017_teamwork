@@ -9,11 +9,11 @@ from playground.network.common import StackingProtocol
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingTransport
 import playground
-from HandShakePacket import *
-from ClientPassThrough import *
-from ClientAppProtocol import *
+from .HandShakePacket import *
+from .ClientPassThrough import *
+from .ClientAppProtocol import *
 from asyncio import *
-from TranCliProto import TranCliProto
+from .TranCliProto import TranCliProto
 
 if __name__=='__main__':
     loop = get_event_loop()
