@@ -1,20 +1,20 @@
 '''
 Created on 20170926
 
-@author: wangweizhou
+@author: teamwork 
 '''
 from playground.network.packet import PacketType
 from playground.network.packet.fieldtypes import UINT32, STRING, BUFFER, BOOL
 from playground.network.common import StackingProtocol
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingTransport
-import asyncio
-from .myTransport import *
+from asyncio import *
+from .HandShakePacket import *
 import playground
 import random
 import time
-from .HandShakePacket import *
-
+#from mypacket import *
+from .myTransport import TranTransport
 '''
     State machine:
     1. state = 0  Inactivate && waiting for Syn packet
@@ -28,159 +28,150 @@ from .HandShakePacket import *
 
 class TranSerProto(StackingProtocol):
     def __init__(self):
+        self.data = b""
         self.transport = None
-        self._deserializer = PEEPPacket.Deserializer()
-        self.handshake = False
-        self.seq = 0
-        self.state = 0
-        self.ack_counter = 0
-        self.expected_packet = 0
-        self.expected_ack = 0
-        self.info_list = item_list()
-        self.timeout_timer = time.time()
+        self.window = []
+        self.loop = get_event_loop()
         self.higherTransport = None
-        self.lastcorrect = 0
-        self.lastAck = 0
-        self.close_timer = time.time()
-
-    def transmit(self):
-        if time.time() - self.timeout_timer > 0.5:
-            if self.info_list.sequenceNumber < self.info_list.init_seq + len(self.info_list.outBuffer):
-                if self.lastAck > self.info_list.sequenceNumber:
-                    self.info_list.sequenceNumber = self.lastAck
-                self.higherTransport.sent_data()
-                self.timeout_timer = time.time()
-                self.ack_counter = 0
-            else:
-                if time.time() - self.close_timer > 20:
-                    self.info_list.readyToclose = True
-                    self.higherTransport.close()
-                    return
-        txDelay = 1
-        asyncio.get_event_loop().call_later(txDelay, self.transmit)
+        self.Status = 0
+        self.RecSeq = 0
+        self.SenSeq = 0
+        self.deserializer = PEEPPacket.Deserializer()
+        self.resentFlag = False
+        self.sentCount = 0
+        self.initCount = 3
+        self.expectSeq =0
+        self.randSeq = random.randint(0, 1000)
 
     def connection_made(self, transport):
+        print("Server: TranSerProto Connection made!")
         self.transport = transport
-        
-
-    def resentsynack(self, pkt):
-        if self.state == 1:
-            self.transport.write(pkt.__serialize__())
-            asyncio.get_event_loop().call_later(1, self.resentsynack, pkt)
+        self.higherTransport = TranTransport(self.transport,self)
 
     def data_received(self, data):
-        self.close_timer = time.time()
-        self._deserializer.update(data)
-        for pkt in self._deserializer.nextPackets():
-            if isinstance(pkt, PEEPPacket):
-                if pkt.Type == 0 and self.state == 0:
-                    if pkt.verifyChecksum():
-                        print("Server: received SYN")
-                        SYN_ACK = PEEPPacket()
-                        SYN_ACK.Type = 1
-                        self.seq = self.seq + 1
-                        SYN_ACK.updateSeqAcknumber(seq=self.seq, ack=pkt.SequenceNumber + 1)
-                        SYN_ACK.Checksum = SYN_ACK.calculateChecksum()
-                        print("Server: SYN-ACK sent")
-                        self.transport.write(SYN_ACK.__serialize__())
-                        self.state = 1
-                        self.resentsynack(SYN_ACK)
+        #self.data = data
+        self.deserializer.update(data)
 
-                elif pkt.Type == 2 and self.state == 1 and not self.handshake:
-                    if pkt.verifyChecksum():
-                        self.state = 3
-                        print("Srver: ACK received!")
-                        self.expected_packet = pkt.SequenceNumber
-                        self.expected_ack = pkt.SequenceNumber + PACKET_SIZE
-                        self.info_list.sequenceNumber = self.seq
-                        self.info_list.init_seq = self.seq
-
-                        self.higherTransport = myTransport(self.transport)
-                        self.higherTransport.setinfo(self.info_list)
-                        self.higherProtocol().connection_made(self.higherTransport)
-                        self.handshake = True
-                        self.transmit()
-                        break
+        for pkg in self.deserializer.nextPackets():
+            if self.Status == 0:
+                if pkg.Type == 0:
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    print("Server: SYN received!")
+                    self.RecSeq = pkg.SequenceNumber
+                    tmpkg = PEEPPacket()
+                    tmpkg.Type = 1
+                    tmpkg.Checksum = 0
+                    tmpkg.SequenceNumber = self.randSeq
+                    self.SenSeq = tmpkg.SequenceNumber
+                    tmpkg.Acknowledgement = self.RecSeq + 1
+                    tmpkg.updateChecksum()
+                    print("Server: Ack+Syn sent!")
+                    self.transport.write(tmpkg.__serialize__())
                     
-                elif self.handshake:
-                    if pkt.Type == 5:
-                        if self.verify_packet(pkt, self.expected_packet):
-                            self.lastcorrect = pkt.SequenceNumber + len(pkt.Data)
-                            self.expected_packet = self.expected_packet + len(pkt.Data)
-                            Ackpacket = self.generate_ACK(self.seq, pkt.SequenceNumber + len(pkt.Data))
-                            self.transport.write(Ackpacket.__serialize__())
-                            self.higherProtocol().data_received(pkt.Data)
-                        else:
-                            Ackpacket = self.generate_ACK(self.seq, self.lastcorrect)
-                            self.transport.write(Ackpacket.__serialize__())
-
-                    if pkt.Type == 2:
-                        if self.verify_ack(pkt):
-                            self.ack_counter = self.ack_counter + 1
-                           
-                            if self.info_list.sequenceNumber < pkt.Acknowledgement:
-                                self.info_list.sequenceNumber = pkt.Acknowledgement
-                                self.lastAck = pkt.Acknowledgement
-                            if self.ack_counter == WINDOW_SIZE and pkt.Acknowledgement < len(
-                                    self.info_list.outBuffer) + self.seq:
-                                self.timeout_timer = time.time()
-                                self.ack_counter = 0
-
-                                if pkt.Acknowledgement < self.info_list.init_seq + len(self.info_list.outBuffer):
-                                    self.higherTransport.sent_data()
-
-                            elif pkt.Acknowledgement == len(self.info_list.outBuffer) + self.seq:
-                                self.seq = pkt.Acknowledgement
-                                self.ack_counter = 0
-                                self.higherTransport.setinfo(self.info_list)
-
-                    if pkt.Type == 3:
-                        if self.info_list.sequenceNumber >= self.info_list.init_seq + len(self.info_list.outBuffer):
-                            RIP_ACK = PEEPPacket()
-                            RIP_ACK.Type = 4
-                            RIP_ACK.updateSeqAcknumber(seq=self.info_list.sequenceNumber, ack=pkt.Acknowledgement)
-                            RIP_ACK.Checksum = RIP_ACK.calculateChecksum()
-                            print("Server: RIP-ACK sent!")
-                            self.transport.write(RIP_ACK.__serialize__())
-                            self.info_list.readyToclose = True
-                            self.higherTransport.close()
+                    
+                if pkg.Type == 2:
+                    self.Status = 1
+            if self.Status == 1:
+                if pkg.Type == 2:
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    print("Server: ACK received!")
+                    if pkg.Acknowledgement == self.SenSeq + 1:
+                        self.RecSeq = pkg.SequenceNumber
+                        self.Status = 2
+                        #self.SenSeq = pkg.Acknowledgement
+                        print("Server: Activated!")
+                        self.higherProtocol().connection_made(self.higherTransport)
+                        #self.sentpackets()
+                        
+                    
+            elif self.Status == 2:
+                
+                    
+                ''' Close the connection!'''
+                if pkg.Type == 2:
+                    #print("Server: Ack Packet acknowledgement number: ", pkg.Acknowledgement)
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    '''
+                    if len(pkg.Data) != 0:
+                        self.higherProtocol().data_received(pkg.Data)                                                                                                                                                     
+                        self.RecSeq+=1
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Checksum = 0
+                        dataAck.SequenceNumber =0
+                        dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
+                    '''
+                    self.window.append(pkg.Acknowledgement)
+                
+                if pkg.Type == 5:
+                    if self.expectSeq == 0:
+                        self.expectSeq = pkg.SequenceNumber
+                    #print("Server: Data packets Sequence Number:", pkg.SequenceNumber)
+                    if self.expectSeq == pkg.SequenceNumber:
+                        if not pkg.verifyChecksum():
+                            print("Required resent packet because of checksum error!")
+                        self.higherProtocol().data_received(pkg.Data)                                                                                                                                           
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Checksum = 0
+                        dataAck.SequenceNumber = 0
+                        dataAck.Data = b""
+                        #dataAck.Acknowledgement = 0
+                        dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
+                        self.expectSeq = dataAck.Acknowledgement
+                    else:
+                        dataAck = PEEPPacket()
+                        dataAck.Type = 2
+                        dataAck.Checksum = 0
+                        dataAck.SequenceNumber = 0
+                        dataAck.Data = b""
+                        dataAck.Acknowledgement = self.expectSeq
+                        #dataAck.Acknowledgement = pkg.SequenceNumber + len(pkg.Data)
+                        dataAck.updateChecksum()
+                        self.transport.write(dataAck.__serialize__())
+                if pkg.Type == 3:
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    print("Server: Rip received from Client!")
+                    self.RecSeq = pkg.SequenceNumber
+                    ServerRipAckPacket = PEEPPacket()
+                    ServerRipAckPacket.Type = 4
+                    self.RecSeq += 1
+                    ServerRipAckPacket.Acknowledgement = self.RecSeq
+                    self.SenSeq += 1
+                    ServerRipAckPacket.SequenceNumber = self.SenSeq
+                    self.Status = "HalfActivated"
+                    ServerRipAckPacket.Checksum = 0
+                    ServerRipAckPacket.updateChecksum()
+                    self.transport.write(ServerRipAckPacket.__serialize__())
+                    self.loop.call_later(10,self.connection_lost, "client request")
+                    '''
+                        Only transfer data in the buffer!
+                        Waiting for the transportation complete!
+                    '''
+            if self.Status ==3:
+                if pkg.Type == 4:
+                    if not pkg.verifyChecksum():
+                        print("Required resent packet because of checksum error!")
+                    print("Server: Rip-Ack received!")
+                    self.Status = 0
+                    self.loop.call_later(10,self.connection_lost, "client request")
+                    
+    def sentpackets(self):
+        if len(self.data)!=0:
+            self.higherTransport.sent(self.data)
+            #print("sent")
+            self.loop.call_later(0.5,self.sentpackets)
+    
 
     def connection_lost(self, exc):
         self.higherProtocol().connection_lost(exc)
-    
-    def verify_packet(self, packet, expected_packet):
-        goodpacket = True
-        if packet.verifyChecksum() == False:
-            print("Server: Wrong checksum")
-            goodpacket = False
-        if expected_packet != packet.SequenceNumber:
-            print("Server: Wrong packet seq number")
-            print("Server: Expected number:" + str(expected_packet))
-            print("Server: packet number: " + str(packet.SequenceNumber))
-            
-            goodpacket = False
-        return goodpacket
-    
-    def verify_ack(self, packet):
-        goodpacket = True
-        if packet.verifyChecksum() == False:
-            print("Server: Wrong checksum")
-            goodpacket = False
-        return goodpacket
-    
-    def generate_ACK(self, seq_number, ack_number):
-        ACK = PEEPPacket()
-        ACK.Type = 2
-        ACK.SequenceNumber = seq_number
-        ACK.Acknowledgement = ack_number
-        ACK.Checksum = ACK.calculateChecksum()
-        return ACK
-
-
-
-
-
-
-
-
-
+        self.higherTransport().lowerTransport().close()
+        print('Connection stopped because {}'.format(exc))
