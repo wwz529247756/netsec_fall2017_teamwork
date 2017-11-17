@@ -15,20 +15,18 @@ from .myTransport import *
 import random
 import time
 import logging
-
+#from asyncio.windows_events import NULL
 
 
 '''
-State machine definition:
-Client:
     state = 0 Inactivated 
     state = 1 Waiting for SYN-Ack
     state = 2 Ack sent && Connection made 
     state = 3 Rip sent waiting for ack
     state = 4 ack receive waiting for Rip
 '''
-logging.getLogger().setLevel(logging.NOTSET)  
-logging.getLogger().addHandler(logging.StreamHandler())  
+#logging.getLogger().setLevel(logging.NOTSET)  
+#logging.getLogger().addHandler(logging.StreamHandler()) 
 
 
 class TranCliProto(StackingProtocol):
@@ -50,7 +48,39 @@ class TranCliProto(StackingProtocol):
         self.close_timer = time.time()
         self.forceclose = 0
 
-    
+    def transmit(self):
+        if time.time() - self.timeout_timer > 0.5:
+            if self.info_list.sequenceNumber < self.info_list.init_seq + len(self.info_list.outBuffer):
+                if self.lastAck > self.info_list.sequenceNumber:
+                    self.info_list.sequenceNumber = self.lastAck
+                self.ack_counter = 0
+                self.timeout_timer = time.time()
+                self.higherTransport.sent_data()
+            else:
+                print("Client: Closing...")
+
+        if time.time() - self.close_timer > 5:
+            self.forceclose += 1
+            self.close_timer = time.time()
+            Rip = PEEPPacket()
+            Rip.Type = 3
+            Rip.updateSeqAcknumber(self.info_list.sequenceNumber, ack=1)
+            print("client: Rip sent")
+            Rip.Checksum = Rip.calculateChecksum()
+            self.transport.write(Rip.__serialize__())
+
+            if self.forceclose > 5:
+                self.info_list.readyToclose = True
+                self.higherTransport.close()
+                return
+
+        txDelay = 1
+        asyncio.get_event_loop().call_later(txDelay, self.transmit)
+
+    def resentsyn(self, pkt):
+        if self.state == 0:
+            self.transport.write(pkt.__serialize__())
+            asyncio.get_event_loop().call_later(1, self.resentsyn, pkt)
 
     def connection_made(self, transport):
         self.transport = transport
@@ -70,7 +100,7 @@ class TranCliProto(StackingProtocol):
         for pkt in self._deserializer.nextPackets():
             if isinstance(pkt, PEEPPacket):
                 if pkt.Type == 1 and self.state == 0 and not self.handshake:
-                    print("Client: Syn-Ack received")
+                    print("Client: SYN-ACK received")
                     if pkt.verifyChecksum():
                         ACK = PEEPPacket()
                         ACK.Type = 2  
@@ -80,7 +110,6 @@ class TranCliProto(StackingProtocol):
                         ACK.Checksum = ACK.calculateChecksum()
                         self.transport.write(ACK.__serialize__())
                         self.state = 1
-                        print("Client: ACK sent")
                         self.expected_packet = pkt.SequenceNumber
                         self.expected_ack = pkt.SequenceNumber + PACKET_SIZE
                         self.info_list.sequenceNumber = self.seq
@@ -90,7 +119,6 @@ class TranCliProto(StackingProtocol):
                         self.higherProtocol().connection_made(self.higherTransport)
                         self.handshake = True
                         self.transmit()
-
 
                 elif self.handshake:
                     if pkt.Type == 5:
@@ -103,7 +131,6 @@ class TranCliProto(StackingProtocol):
                         else:
 
                             Ackpacket = self.generate_ACK(self.seq, self.lastcorrect)
-                            
                             self.transport.write(Ackpacket.__serialize__())
 
                     if pkt.Type == 2:
@@ -118,7 +145,6 @@ class TranCliProto(StackingProtocol):
                             if self.ack_counter == WINDOW_SIZE and pkt.Acknowledgement < len(
                                     self.info_list.outBuffer) + self.seq:
                                 self.timeout_timer = time.time()
-                                
                                 self.ack_counter = 0
 
                                 if pkt.Acknowledgement < self.info_list.init_seq + len(self.info_list.outBuffer):
@@ -128,57 +154,23 @@ class TranCliProto(StackingProtocol):
                                 self.seq = pkt.Acknowledgement
                                 self.ack_counter = 0
                                 self.higherTransport.setinfo(self.info_list)
-            
+                                
                     if pkt.Type == 4:
-                        print("Client: Receive Rip-Ack!")
+                        print("Client: Received Rip-Ack")
                         self.info_list.readyToclose = True
                         self.higherTransport.close()
 
     def connection_lost(self, exc):
         self.higherProtocol().connection_lost(exc)
-        
-    def transmit(self):
-        if time.time() - self.timeout_timer > 0.5:
-            if self.info_list.sequenceNumber < self.info_list.init_seq + len(self.info_list.outBuffer):
-                if self.lastAck > self.info_list.sequenceNumber:
-                    self.info_list.sequenceNumber = self.lastAck
-                self.ack_counter = 0
-                self.timeout_timer = time.time()
-                self.higherTransport.sent_data()
-            else:
-                print("Client: Ending....")
-
-        if time.time() - self.close_timer > 5:
-            self.forceclose += 1
-            self.close_timer = time.time()
-            Rip = PEEPPacket()
-            Rip.Type = 3
-            Rip.updateSeqAcknumber(self.info_list.sequenceNumber, ack=1)
-            print("Client: Rip sent")
-            Rip.Checksum = Rip.calculateChecksum()
-            self.transport.write(Rip.__serialize__())
-
-            if self.forceclose > 5:
-                self.info_list.readyToclose = True
-                self.higherTransport.close()
-                return
-
-        txDelay = 1
-        asyncio.get_event_loop().call_later(txDelay, self.transmit)
-
-    def resentsyn(self, pkt):
-        if self.state == 0:
-            self.transport.write(pkt.__serialize__())
-            asyncio.get_event_loop().call_later(1, self.resentsyn, pkt)
     
     def verify_packet(self, packet, expected_packet):
         goodpacket = True
         if packet.verifyChecksum() == False:
-            print("wrong checksum")
+            print("Client: Wrong checksum")
             goodpacket = False
         if expected_packet != packet.SequenceNumber:
             print("Client: Wrong packet seq number")
-            print("Client: Expected number:" + str(expected_packet))
+            print("Client: Expected seq number:" + str(expected_packet))
             print("Client: Received seq number: " + str(packet.SequenceNumber))
             
             goodpacket = False

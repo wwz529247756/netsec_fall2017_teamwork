@@ -7,14 +7,16 @@ Created on 20170926
 from playground.network.common import *
 from .HandShakePacket import *
 
+
+'''
+    Define Packet Size and Window Size!
+'''
 PACKET_SIZE = 1000
-WINDOW_SIZE = 5
+WINDOW_SIZE = 10
 
 
 
 class myTransport(StackingTransport):
-    def setinfo(self, info_list):
-        self.info_list = info_list
 
     def write(self, data):  
         if len(self.info_list.outBuffer) < 3:
@@ -26,12 +28,11 @@ class myTransport(StackingTransport):
         else:
             self.info_list.outBuffer += data
 
-
     def close(self):
         if self.info_list.readyToclose:
             self.lowerTransport().close()
         else:
-            print("waiting...")
+            print("Waiting for close!")
 
     def sent_data(self):
         small_packet = PEEPPacket()
@@ -56,7 +57,10 @@ class myTransport(StackingTransport):
             if n > WINDOW_SIZE:
                 break
         self.info_list.sequenceNumber = recordSeq
-
+        
+    def setinfo(self, info_list):
+        self.info_list = info_list
+    
     def get_data(self):
         return self.info_list.data
     

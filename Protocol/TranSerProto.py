@@ -43,13 +43,30 @@ class TranSerProto(StackingProtocol):
         self.lastAck = 0
         self.close_timer = time.time()
 
-    
+    def transmit(self):
+        if time.time() - self.timeout_timer > 0.5:
+            if self.info_list.sequenceNumber < self.info_list.init_seq + len(self.info_list.outBuffer):
+                if self.lastAck > self.info_list.sequenceNumber:
+                    self.info_list.sequenceNumber = self.lastAck
+                self.higherTransport.sent_data()
+                self.timeout_timer = time.time()
+                self.ack_counter = 0
+            else:
+                if time.time() - self.close_timer > 20:
+                    self.info_list.readyToclose = True
+                    self.higherTransport.close()
+                    return
+        txDelay = 1
+        asyncio.get_event_loop().call_later(txDelay, self.transmit)
 
     def connection_made(self, transport):
         self.transport = transport
         
 
-    
+    def resentsynack(self, pkt):
+        if self.state == 1:
+            self.transport.write(pkt.__serialize__())
+            asyncio.get_event_loop().call_later(1, self.resentsynack, pkt)
 
     def data_received(self, data):
         self.close_timer = time.time()
@@ -84,8 +101,7 @@ class TranSerProto(StackingProtocol):
                         self.handshake = True
                         self.transmit()
                         break
-
-
+                    
                 elif self.handshake:
                     if pkt.Type == 5:
                         if self.verify_packet(pkt, self.expected_packet):
@@ -101,7 +117,7 @@ class TranSerProto(StackingProtocol):
                     if pkt.Type == 2:
                         if self.verify_ack(pkt):
                             self.ack_counter = self.ack_counter + 1
-
+                           
                             if self.info_list.sequenceNumber < pkt.Acknowledgement:
                                 self.info_list.sequenceNumber = pkt.Acknowledgement
                                 self.lastAck = pkt.Acknowledgement
@@ -139,16 +155,11 @@ class TranSerProto(StackingProtocol):
             goodpacket = False
         if expected_packet != packet.SequenceNumber:
             print("Server: Wrong packet seq number")
-            print("Server: Expected seq number:" + str(expected_packet))
-            print("Server: Received seq number: " + str(packet.SequenceNumber))
+            print("Server: Expected number:" + str(expected_packet))
+            print("Server: packet number: " + str(packet.SequenceNumber))
             
             goodpacket = False
         return goodpacket
-
-    def resentsynack(self, pkt):
-        if self.state == 1:
-            self.transport.write(pkt.__serialize__())
-            asyncio.get_event_loop().call_later(1, self.resentsynack, pkt)
     
     def verify_ack(self, packet):
         goodpacket = True
@@ -163,7 +174,6 @@ class TranSerProto(StackingProtocol):
         ACK.SequenceNumber = seq_number
         ACK.Acknowledgement = ack_number
         ACK.Checksum = ACK.calculateChecksum()
-    
         return ACK
 
 
