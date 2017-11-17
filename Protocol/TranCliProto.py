@@ -1,3 +1,8 @@
+'''
+Created on 20170926
+
+@author: wangweizhou
+'''
 import asyncio
 import playground
 from .HandShakePacket import *
@@ -6,9 +11,10 @@ from playground.network.common import PlaygroundAddress
 from playground.network.common import StackingProtocolFactory
 from playground.network.common import StackingProtocol
 from playground.network.common import StackingTransport
-from .MyProtocolTransport import *
+from .myTransport import *
 import random
 import time
+import logging
 #from asyncio.windows_events import NULL
 
 
@@ -21,7 +27,8 @@ Client:
     state = 3 Rip sent waiting for ack
     state = 4 ack receive waiting for Rip
 '''
-
+logging.getLogger().setLevel(logging.NOTSET)  # this logs *everything*
+logging.getLogger().addHandler(logging.StreamHandler())  # logs to stderr
 
 
 class TranCliProto(StackingProtocol):
@@ -111,11 +118,11 @@ class TranCliProto(StackingProtocol):
                         print("upper level start here")
                         # setup the self.info_list for this protocal
                         self.expected_packet = pkt.SequenceNumber
-                        self.expected_ack = pkt.SequenceNumber + packet_size
+                        self.expected_ack = pkt.SequenceNumber + PACKET_SIZE
                         # setup stuff for data transfer
                         self.info_list.sequenceNumber = self.seq
                         self.info_list.init_seq = self.seq
-                        self.higherTransport = MyTransport(self.transport)
+                        self.higherTransport = myTransport(self.transport)
                         self.higherTransport.setinfo(self.info_list)
                         self.higherProtocol().connection_made(self.higherTransport)
                         self.handshake = True
@@ -125,34 +132,30 @@ class TranCliProto(StackingProtocol):
                         # client and server should be the same, start from here
                 elif self.handshake:
                     if pkt.Type == 5:
-                        if verify_packet(pkt, self.expected_packet):
-                            # print("verify_packet from server")
+                        if self.verify_packet(pkt, self.expected_packet):
                             self.lastcorrect = pkt.SequenceNumber + len(pkt.Data)
                             self.expected_packet = self.expected_packet + len(pkt.Data)
-                            Ackpacket = generate_ACK(self.seq, pkt.SequenceNumber + len(pkt.Data))
+                            Ackpacket = self.generate_ACK(self.seq, pkt.SequenceNumber + len(pkt.Data))
                             # print("seq number:" + str(pkt.SequenceNumber))
                             self.transport.write(Ackpacket.__serialize__())
                             self.higherProtocol().data_received(pkt.Data)
                         else:
 
-                            Ackpacket = generate_ACK(self.seq, self.lastcorrect)
+                            Ackpacket = self.generate_ACK(self.seq, self.lastcorrect)
                             # print("seq number:" + str(pkt.SequenceNumber))
                             print("the client ack number out last correct: " + str(self.lastcorrect))
                             self.transport.write(Ackpacket.__serialize__())
 
                     if pkt.Type == 2:
-                        if verify_ack(pkt):
+                        if self.verify_ack(pkt):
                             self.ack_counter = self.ack_counter + 1
-                            # print(self.ack_counter)
-                            # print("I got an ACK")
-                            # print(pkt.Acknowledgement)
-                            # print("ack number:" + str(pkt.Acknowledgement))
+                            
 
                             if self.info_list.sequenceNumber < pkt.Acknowledgement:
                                 self.info_list.sequenceNumber = pkt.Acknowledgement
                                 self.lastAck = pkt.Acknowledgement
 
-                            if self.ack_counter == window_size and pkt.Acknowledgement < len(
+                            if self.ack_counter == WINDOW_SIZE and pkt.Acknowledgement < len(
                                     self.info_list.outBuffer) + self.seq:
                                 self.timeout_timer = time.time()
                                 print("next round")
@@ -175,36 +178,38 @@ class TranCliProto(StackingProtocol):
 
     def connection_lost(self, exc):
         self.higherProtocol().connection_lost(exc)
-
+    
+    def verify_packet(self, packet, expected_packet):
+        goodpacket = True
+        if packet.verifyChecksum() == False:
+            print("wrong checksum")
+            goodpacket = False
+        if expected_packet != packet.SequenceNumber:
+            print("expect_number:" + str(expected_packet))
+            print("packet number: " + str(packet.SequenceNumber))
+            print("wrong packet seq number")
+            goodpacket = False
+        return goodpacket
+    def verify_ack(self, packet):
+        goodpacket = True
+        if packet.verifyChecksum() == False:
+            print("wrong checksum")
+            goodpacket = False
+        return goodpacket
+    def generate_ACK(self, seq_number, ack_number):
+        ACK = PEEPPacket()
+        ACK.Type = 2
+        ACK.SequenceNumber = seq_number
+        ACK.Acknowledgement = ack_number
+        # print("this is my ack number " + str(ack_number))
+        ACK.Checksum = ACK.calculateChecksum()
+        return ACK
         
-def verify_packet(packet, expected_packet):
-    goodpacket = True
-    if packet.verifyChecksum() == False:
-        print("wrong checksum")
-        goodpacket = False
-    if expected_packet != packet.SequenceNumber:
-        print("expect_number:" + str(expected_packet))
-        print("packet number: " + str(packet.SequenceNumber))
-        print("wrong packet seq number")
-        goodpacket = False
-    return goodpacket
 
 
-def verify_ack(packet):
-    goodpacket = True
-    if packet.verifyChecksum() == False:
-        print("wrong checksum")
-        goodpacket = False
-    return goodpacket
 
 
-def generate_ACK(seq_number, ack_number):
-    ACK = PEEPPacket()
-    ACK.Type = 2
-    ACK.SequenceNumber = seq_number
-    ACK.Acknowledgement = ack_number
-    # print("this is my ack number " + str(ack_number))
-    ACK.Checksum = ACK.calculateChecksum()
 
-    return ACK
+
+
 
