@@ -16,7 +16,7 @@ class myTransport(StackingTransport):
     def setinfo(self, info_list):
         self.info_list = info_list
 
-    def write(self, data):  # this will be the data from the upper layer
+    def write(self, data):  
         if len(self.info_list.outBuffer) < 3:
             self.info_list.init_seq = self.info_list.sequenceNumber
 
@@ -26,7 +26,6 @@ class myTransport(StackingTransport):
         else:
             self.info_list.outBuffer += data
 
-            #
 
     def close(self):
         if self.info_list.readyToclose:
@@ -49,7 +48,7 @@ class myTransport(StackingTransport):
                 self.info_list.sequenceNumber += len(packet_data)
                 n = 999
             print("Sent seq number:" + str(self.info_list.sequenceNumber))
-            small_packet.Type = 5  # data packet
+            small_packet.Type = 5  
             small_packet.Data = packet_data
             small_packet.Checksum = small_packet.calculateChecksum()
             self.lowerTransport().write(small_packet.__serialize__())
