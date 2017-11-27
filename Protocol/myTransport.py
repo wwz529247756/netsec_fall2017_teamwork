@@ -15,7 +15,7 @@ class TranTransport(StackingTransport):
         self.protocol = protocol
         self.buffer = []        #Packet buffer
         self.Size = 1000
-        self.windowSize = 5 * self.Size
+        self.windowSize = 10 * self.Size
         self.protocol.packetsize = self.Size
         self.window = []  # Sliding window: recording the sequence number of the packets that has been sent
         self.pktseqStore = []  # To store bytes that have been transmitted

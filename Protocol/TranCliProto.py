@@ -146,18 +146,17 @@ class TranCliProto(StackingProtocol):
                     ServerRipAckPacket.Checksum = 0
                     ServerRipAckPacket.updateChecksum()
                     self.transport.write(ServerRipAckPacket.__serialize__())
-                    self.loop.call_later(10,self.connection_lost, "client request")
+                    self.loop.call_later(5,self.connection_lost,"REQUEST!")
                     '''
                         Only transfer data in the buffer!
                         Waiting for the transportation complete!
                     '''
-            if self.Status ==3:
                 if pkt.Type == 4:
                     if not pkt.verifyChecksum():
                         print("Required resent packet because of checksum error!")
                     print("Server: Rip-Ack received!")
                     self.Status = 0
-                    self.loop.call_later(10,self.connection_lost, "client request")
+                    self.loop.call_later(5,self.connection_lost,"REQUEST!")
                 
 
     def connection_request(self):
